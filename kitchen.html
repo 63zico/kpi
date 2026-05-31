@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DOYA KPI Ï£ºÎ∞© ?âÍ?</title>
+    <link rel="stylesheet" href="styles.css?v=20260521-kitchen-contrib-1" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Kitchen Team KPI</p>
+        <h1 data-i18n="kitchenCheck">Ï£ºÎ∞© ?âÍ?</h1>
+      </div>
+      <div class="top-actions">
+        <div class="language-switch" aria-label="Language">
+          <button class="btn ghost" data-lang-toggle="ko" type="button">?úÍµ≠??/button>
+          <button class="btn ghost" data-lang-toggle="vi" type="button">Ti·∫øng Vi·ªát</button>
+        </div>
+        <a class="btn ghost" href="index.html" data-i18n="kpiScreen">KPI ?îÎ©¥</a>
+        <a class="btn ghost" href="staff.html" data-i18n="staffManage">ÏßÅÏõê Í¥ÄÎ¶?/a>
+        <button id="kitchenExportBtn" class="btn ghost" type="button" data-i18n="exportCsv">CSV ?¥Î≥¥?¥Í∏∞</button>
+        <button id="kitchenResetBtn" class="btn danger" type="button" data-i18n="reset">Ï¥àÍ∏∞??/button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="summary-grid kitchen-summary" aria-label="Kitchen summary">
+        <article class="metric">
+          <span data-i18n="kitchenMonthlyScore">?îÍ∞Ñ Ï£ºÎ∞©?Ä ?êÏàò</span>
+          <strong id="kitchenMonthScore">0??/strong>
+          <small data-i18n="kitchenMonthlyAverage">?¥Î≤à ???âÍ∑†</small>
+        </article>
+        <article class="metric">
+          <span data-i18n="kitchenBonusPool">Ï£ºÎ∞©?Ä Î≥¥ÎÑà???Ä</span>
+          <strong id="kitchenBonusPool">0??/strong>
+          <small data-i18n="kitchenBonusByScore">?êÏàò Í∏∞Ï? ?êÎèô Í≥ÑÏÇ∞</small>
+        </article>
+        <article class="metric">
+          <span data-i18n="kitchenWorkDays">Ï£ºÎ∞© Ï∂úÍ∑º???©Í≥Ñ</span>
+          <strong id="kitchenWorkDays">0??/strong>
+          <small data-i18n="kitchenSplitRule">Ï∂úÍ∑º??ÎπÑÏú®Î°?Î∂ÑÎ∞∞</small>
+        </article>
+        <article class="metric">
+          <span data-i18n="kitchenEntries">?âÍ? Í∏∞Î°ù</span>
+          <strong id="kitchenEntryCount">0Í∞?/strong>
+          <small data-i18n="kitchenThisMonth">?¥Î≤à ??Í∏∞Ï?</small>
+        </article>
+      </section>
+
+      <section class="layout-grid">
+        <article class="panel input-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Kitchen Input</p>
+              <h2 data-i18n="kitchenDailyInput">Ï£ºÎ∞© ?ºÏùº ?âÍ?</h2>
+            </div>
+            <span class="pill" data-i18n="kitchen100">Ï£ºÎ∞©?Ä 100??/span>
+          </div>
+
+          <form id="kitchenForm" class="score-form">
+            <label>
+              <span data-i18n="date">?†Ïßú</span>
+              <input id="kitchenDate" type="date" required />
+            </label>
+            <label>
+              <span data-i18n="kitchenQuality">?åÏãù ?àÏßà 35</span>
+              <input id="qualityScore" type="number" min="0" max="35" value="30" />
+            </label>
+            <label>
+              <span data-i18n="kitchenSpeed">Ï∂úÍ≥† ?çÎèÑ 25</span>
+              <input id="speedScore" type="number" min="0" max="25" value="20" />
+            </label>
+            <label>
+              <span data-i18n="kitchenCleanliness">?ÑÏÉù/?ïÎ¶¨ 25</span>
+              <input id="cleanScore" type="number" min="0" max="25" value="22" />
+            </label>
+            <label>
+              <span data-i18n="kitchenPrep">?¨Í≥†/Ï§ÄÎπ?15</span>
+              <input id="prepScore" type="number" min="0" max="15" value="12" />
+            </label>
+            <label>
+              <span data-i18n="kitchenPenalty">Ï∂îÍ? Í∞êÏ†ê</span>
+              <input id="kitchenPenalty" type="number" min="0" value="0" />
+            </label>
+            <label class="wide-field">
+              <span data-i18n="memo">Î©îÎ™®</span>
+              <input id="kitchenMemo" type="text" data-i18n-placeholder="kitchenMemoPlaceholder" placeholder="?? ?ºÌÅ¨ Ï∂úÍ≥† ÏßÄ?? Ï≤?Üå ?∞Ïàò" />
+            </label>
+            <button class="btn primary" type="submit" data-i18n="addRecord">Í∏∞Î°ù Ï∂îÍ?</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Bonus Split</p>
+              <h2 data-i18n="kitchenBonusSplit">Ï£ºÎ∞© Î≥¥ÎÑà??Î∂ÑÎ∞∞</h2>
+            </div>
+            <span class="pill" data-i18n="kitchenAttendance">Ï£ºÎ∞© Ï∂úÍ∑º??/span>
+          </div>
+          <div id="kitchenAttendanceEditor" class="attendance-editor"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-i18n="staff">ÏßÅÏõê</th>
+                  <th data-i18n="role">??ï†</th>
+                  <th data-i18n="workDays">Í∑ºÎ¨¥??/th>
+                  <th data-i18n="expectedBonus">?àÏÉÅ Î≥¥ÎÑà??/th>
+                </tr>
+              </thead>
+              <tbody id="kitchenSplitTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Kitchen Log</p>
+            <h2 data-i18n="recentLog">ÏµúÍ∑º Í∏∞Î°ù</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="date">?†Ïßú</th>
+                <th data-i18n="kitchenQualityShort">?àÏßà</th>
+                <th data-i18n="kitchenSpeedShort">?çÎèÑ</th>
+                <th data-i18n="kitchenCleanShort">?ÑÏÉù</th>
+                <th data-i18n="kitchenPrepShort">Ï§ÄÎπ?/th>
+                <th data-i18n="penalty">Í∞êÏ†ê</th>
+                <th data-i18n="total">Ï¥ùÏ†ê</th>
+                <th data-i18n="memo">Î©îÎ™®</th>
+              </tr>
+            </thead>
+            <tbody id="kitchenLogTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="i18n.js"></script>
+    <script src="kitchen.js"></script>
+  </body>
+</html>

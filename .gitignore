@@ -1,0 +1,15 @@
+﻿.vercel/
+.tmp-chrome-test/
+chrome-profile/
+chrome-*-profile*/
+node_modules/
+backups/
+levelove_app/
+dist/
+.env
+.env.*
+*.log
+server-pid.txt
+*.png
+.DS_Store
+Thumbs.db

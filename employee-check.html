@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Levelove 직원 퀘스트</title>
+    <link rel="stylesheet" href="styles.css?v=20260529-role-flow-1" />
+  </head>
+  <body class="employee-app-body">
+    <header class="topbar employee-topbar">
+      <div class="brand-lockup">
+        <span class="crewly-logo" aria-hidden="true">L</span>
+        <div>
+          <p class="eyebrow">Levelove Quest</p>
+          <h1>Levelove</h1>
+          <p class="brand-subtitle">Level up with love.</p>
+        </div>
+      </div>
+      <div class="top-actions language-switch" aria-label="언어 선택">
+        <button class="btn ghost" type="button" data-lang="ko">한국어</button>
+        <button class="btn ghost" type="button" data-lang="vi">Tiếng Việt</button>
+      </div>
+    </header>
+
+    <main class="app-shell employee-shell">
+      <section class="employee-phone">
+        <div id="hatiToast" class="hati-toast" role="status" aria-live="polite">
+          <div class="hati-toast-avatar" aria-hidden="true"></div>
+          <div>
+            <strong id="hatiToastTitle">하티</strong>
+            <span id="hatiToastMessage">준비됐어요!</span>
+          </div>
+        </div>
+
+        <div id="xpBurst" class="xp-burst" aria-hidden="true">+10 XP</div>
+
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong id="questLevel">Lv. 1</strong>
+        </div>
+
+        <section class="panel employee-card">
+          <div class="employee-flow-strip" aria-label="직원 앱 메뉴">
+            <button class="is-active" type="button" data-employee-tab="home">홈</button>
+            <button type="button" data-employee-tab="checkin">출근</button>
+            <button type="button" data-employee-tab="mission">미션</button>
+            <button type="button" data-employee-tab="performance">성과</button>
+            <button type="button" data-employee-tab="ranking">랭킹</button>
+            <button type="button" data-employee-tab="my">마이</button>
+          </div>
+
+          <section id="employeeTabPanel" class="phone-tab-panel" aria-live="polite"></section>
+          <section id="employeeTabContent" class="phone-tab-content" aria-live="polite"></section>
+
+          <form id="selfCheckForm" class="self-check-form">
+            <div class="form-top">
+              <label class="date-field">
+                <span data-i18n="dateLabel">날짜</span>
+                <input id="checkDate" type="date" required />
+              </label>
+              <label class="staff-field">
+                <span data-i18n="staffLabel">직원</span>
+                <select id="checkStaffSelect">
+                  <option value="">직원을 선택해 주세요...</option>
+                </select>
+                <small class="staff-inline-help" data-i18n="staffHelp">직원 전용 링크로 접속하면 자동 선택됩니다.</small>
+              </label>
+              <div id="lockedStaffCard" class="locked-staff-card is-hidden" aria-live="polite">
+                <span id="lockedStaffEyebrow">직원 전용 링크</span>
+                <strong id="lockedStaffName">직원</strong>
+                <small id="lockedStaffRole">이 링크는 직원 화면으로 고정됩니다.</small>
+              </div>
+            </div>
+
+            <div id="emotionCard" class="emotion-card">
+              <strong id="emotionTitle">오늘 기분은 어때요?</strong>
+              <span id="emotionText">출근 전 컨디션을 가볍게 남겨주세요.</span>
+            </div>
+
+            <section id="announcementCard" class="announcement-card is-hidden" aria-label="오늘 공지">
+              <div class="announcement-mascot" aria-hidden="true"></div>
+              <div>
+                <p id="announcementType" class="eyebrow">Event</p>
+                <strong id="announcementTitle">오늘의 공지사항</strong>
+                <span id="announcementMessage">오늘의 미션을 확인하세요.</span>
+              </div>
+            </section>
+
+            <div class="quest-progress" aria-label="필수 미션 진행률">
+              <div>
+                <strong id="questProgressText">0%</strong>
+                <span data-i18n="questProgressLabel">필수 미션 진행률</span>
+              </div>
+              <div class="quest-progress-track"><span id="questProgressFill"></span></div>
+            </div>
+
+            <div class="quest-path" data-focus-tab="mission">
+              <label id="questAttendanceCard" class="check-tile quest-step" data-focus-tab="checkin">
+                <input id="attendanceCheck" type="checkbox" />
+                <span class="quest-step-no">1</span>
+                <span class="quest-step-body">
+                  <strong data-i18n="attendanceTitle">출근 체크</strong>
+                  <small data-i18n="attendanceHelp">버튼 한 번으로 출근 시간을 기록해요</small>
+                  <small id="attendanceTimeText" class="attendance-time">출근 버튼을 누르면 시간이 표시돼요.</small>
+                </span>
+                <em>+10 XP</em>
+              </label>
+
+              <label id="questGoalCard" class="check-tile quest-step">
+                <input id="goalCheck" type="checkbox" />
+                <span class="quest-step-no">2</span>
+                <span class="quest-step-body">
+                  <strong data-i18n="goalTitle">오늘 목표 확인</strong>
+                  <small data-i18n="goalHelp">추천 메뉴, 고객 경험, 팀 흐름까지 오늘의 맵을 먼저 열어봐요.</small>
+                  <div id="operationPointList" class="operation-point-list" aria-label="오늘 운영 포인트">
+                    <span>추천 메뉴</span>
+                    <span>리뷰 요청</span>
+                    <span>멤버십 안내</span>
+                    <span>피크타임 역할</span>
+                  </div>
+                  <small class="quest-proof-note" data-i18n="goalProofNote">확인했으면 카드 왼쪽 체크를 눌러주세요.</small>
+                </span>
+                <em>+10 XP</em>
+              </label>
+
+              <label id="questCleaningCard" class="check-tile quest-step">
+                <input id="cleaningCheck" type="checkbox" />
+                <span class="quest-step-no">3</span>
+                <span class="quest-step-body">
+                  <strong data-i18n="cleaningTitle">마감 가드</strong>
+                  <small data-i18n="cleaningHelp">오늘 공간을 안전하게 지킨 마지막 퀘스트예요.</small>
+                  <input id="cleanAreaSelect" type="hidden" value="" />
+                  <div id="closeAreaText" class="close-area-pill">오늘 담당: 내 구역 마감 상태</div>
+                  <input id="cleanStatusSelect" type="hidden" value="" />
+                </span>
+                <em>+10 XP</em>
+              </label>
+            </div>
+
+            <div id="questHelpCard" class="quest-select optional-quest realtime-card" data-focus-tab="performance">
+              <span class="quest-step-no">4</span>
+              <span class="quest-step-body">
+                <strong data-i18n="helpLabel">칭찬하고 싶은 직원</strong>
+                <small data-i18n="helpHelp">오늘 고마웠던 동료를 한 명 골라주세요.</small>
+              </span>
+              <em>+10 XP</em>
+              <input id="helpCount" type="hidden" value="0" />
+              <select id="helpType">
+                <option value="" data-i18n="noneOption">없음</option>
+              </select>
+              <select id="helpReason" class="quest-proof-select">
+                <option value="" data-i18n="praiseReasonPlaceholder">칭찬 이유 선택</option>
+                <option value="peak" data-i18n="praiseReasonPeak">바쁠 때 도와줬어요</option>
+                <option value="cleaning" data-i18n="praiseReasonCleaning">정리/청소를 도와줬어요</option>
+                <option value="service" data-i18n="praiseReasonService">홀/주방 흐름을 살렸어요</option>
+                <option value="problem" data-i18n="praiseReasonProblem">문제를 해결해줬어요</option>
+                <option value="mood" data-i18n="praiseReasonMood">분위기를 살렸어요</option>
+              </select>
+              <input id="helpNoteInput" class="quest-proof-input" type="text" data-i18n-placeholder="helpNotePlaceholder" placeholder="칭찬 이유를 짧게 적어도 좋아요." />
+              <button id="praiseCompleteButton" class="praise-complete-button" type="button" data-praise-complete disabled>칭찬 완료</button>
+              <button id="praiseSkipButton" class="praise-skip-button" type="button" data-praise-skip>오늘은 칭찬할 사람 없음</button>
+            </div>
+
+            <section id="performanceReportSection" class="performance-report-section" data-focus-tab="performance">
+              <div class="optional-mission-label realtime-label">
+                <strong data-i18n="realtimeTitle">실시간 성과 신고</strong>
+                <span data-i18n="realtimeHelp">완료한 성과 카드에서 신고하세요.</span>
+              </div>
+
+              <div id="hallPointBox" class="score-section point-section optional-quest">
+                <div class="score-section-title">
+                  <strong data-i18n="hallPointTitle">홀 성과 포인트</strong>
+                  <span data-i18n="hallPointHelp">버튼으로 바로 기록해요.</span>
+                </div>
+                <div class="realtime-grid"></div>
+              </div>
+
+              <div id="kitchenPointBox" class="score-section point-section optional-quest">
+                <div class="score-section-title">
+                  <strong data-i18n="kitchenPointTitle">특수 청소 성과 체크</strong>
+                  <span data-i18n="kitchenPointHelp">구역별 청소 성과를 기록해요.</span>
+                </div>
+                <div class="realtime-grid kitchen-clean-grid"></div>
+              </div>
+
+              <div id="marketerPointBox" class="score-section point-section optional-quest is-hidden">
+                <div class="score-section-title">
+                  <strong data-i18n="marketerPointTitle">마케터 기여도 성과</strong>
+                  <span data-i18n="marketerPointHelp">콘텐츠와 보고를 완료할 때마다 남겨요.</span>
+                </div>
+                <div class="realtime-grid marketer-grid"></div>
+              </div>
+
+              <input id="reviewPoint" class="performance-count" type="hidden" value="0" />
+              <input id="upsellPoint" class="performance-count" type="hidden" value="0" />
+              <input id="membershipPoint" class="performance-count" type="hidden" value="0" />
+              <input id="recommendedMenuPoint" class="performance-count" type="hidden" value="0" />
+              <input id="hygieneFixPoint" class="performance-count" type="hidden" value="0" />
+              <input id="threadPostPoint" class="performance-count" type="hidden" value="0" />
+              <input id="videoPostPoint" class="performance-count" type="hidden" value="0" />
+              <input id="tomorrowPlanPoint" class="performance-count" type="hidden" value="0" />
+              <input id="marketingReportPoint" class="performance-count" type="hidden" value="0" />
+              <input id="specialCleanArea" type="hidden" value="" />
+              <span id="specialCleanXpLabel" hidden></span>
+              <span id="specialCleanLastStatus" hidden></span>
+            </section>
+
+            <label id="questPhotoCard" class="quest-upload optional-quest review-proof-upload">
+              <span class="quest-step-body">
+                <strong data-i18n="photoLabel">리뷰 사진 인증</strong>
+                <small data-i18n="photoHelp">필요할 때 사진을 올려주세요.</small>
+              </span>
+              <span id="reviewUploadStatus" class="review-upload-status">사진 선택 전</span>
+              <input id="photoInput" type="file" accept="image/*" multiple />
+            </label>
+            <div id="photoPreview" class="photo-preview-grid is-hidden" aria-label="사진 미리보기"></div>
+
+            <label class="self-check-note-field">
+              <span data-i18n="noteLabel">메모 선택</span>
+              <input id="selfCheckNote" type="text" data-i18n-placeholder="notePlaceholder" placeholder="필요할 때만 짧게 적어요" />
+            </label>
+
+            <div class="final-submit-card">
+              <div>
+                <strong data-i18n="finalSubmitTitle">퇴근 체크하고 제출</strong>
+                <span data-i18n="finalSubmitHelp">누르면 현재 시간이 퇴근시간으로 자동 기록돼요.</span>
+              </div>
+              <div class="quest-submit-row">
+                <button id="saveDraftButton" class="btn ghost" type="button" data-i18n="saveDraftButton">임시 저장</button>
+                <button class="btn primary submit-self-check" type="submit" data-i18n="submitButton">퇴근 체크하고 제출</button>
+              </div>
+            </div>
+            <p id="draftStatus" class="draft-status" data-i18n="draftReadyStatus">실시간 저장됨.</p>
+            <p id="checkoutTimeText" class="draft-status checkout-status">퇴근 전 점검을 제출하면 퇴근시간이 자동 기록돼요.</p>
+          </form>
+        </section>
+
+        <nav class="mobile-tabbar" aria-label="직원 메뉴">
+          <button class="is-active" type="button" data-employee-tab="home">홈</button>
+          <button type="button" data-employee-tab="checkin">출근</button>
+          <button type="button" data-employee-tab="performance">성과</button>
+          <button type="button" data-employee-tab="mission">미션</button>
+          <button type="button" data-employee-tab="ranking">랭킹</button>
+          <button type="button" data-employee-tab="my">마이</button>
+        </nav>
+      </section>
+
+      <section class="panel season-card employee-wide-card" data-focus-tab="my">
+        <strong data-i18n="seasonTitle">이번달 운영 시즌</strong>
+        <span data-i18n="seasonText">출근과 성과 기록을 확인하세요.</span>
+      </section>
+
+      <section class="panel employee-wide-card" data-focus-tab="my">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">My Recent Checks</p>
+            <h2 data-i18n="recentTitle">최근 퀘스트 기록</h2>
+          </div>
+        </div>
+        <div id="selfCheckHistory" class="self-check-history"></div>
+      </section>
+
+      <section class="panel employee-wide-card employee-ranking-combo" data-focus-tab="ranking">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Leaderboard</p>
+            <h2 data-i18n="rankingBundleTitle">주간 및 월간 랭킹</h2>
+          </div>
+          <span class="pill" data-i18n="scoreOnlyPill">TOP3 + 내 순위</span>
+        </div>
+        <div class="employee-ranking-bundle">
+          <section class="ranking-period-block">
+            <div class="ranking-period-head">
+              <span>Weekly</span>
+              <h3 data-i18n="weeklyRankingTitle">주간 랭킹</h3>
+            </div>
+            <div id="employeeWeeklyRanking" class="employee-ranking-list"></div>
+          </section>
+          <section class="ranking-period-block">
+            <div class="ranking-period-head">
+              <span>Monthly</span>
+              <h3 data-i18n="monthlyRankingTitle">월간 랭킹</h3>
+            </div>
+            <div id="employeeMonthlyRanking" class="employee-ranking-list"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="supabase-config.js?v=20260519-launch-fix-1"></script>
+    <script src="auth.js?v=20260531-manager-link-1"></script>
+    <script src="cloud-state.js?v=20260526-no-auth-restore-1"></script>
+    <script src="employee-check.js?v=20260529-role-flow-1"></script>
+  </body>
+</html>

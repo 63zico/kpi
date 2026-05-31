@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Levelove Launch Preview</title>
+  <style>
+    :root {
+      --ink: #10243f;
+      --muted: #6f8195;
+      --blue: #1cb0f6;
+      --green: #58cc02;
+      --line: #dceaf5;
+      --soft-blue: #eff9ff;
+      --soft-green: #f1ffe9;
+      --gold: #ffc83d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(28,176,246,.18), transparent 28%),
+        radial-gradient(circle at 90% 12%, rgba(255,155,215,.2), transparent 24%),
+        linear-gradient(135deg, #f8fdff, #fff7fd 46%, #effff5);
+      min-height: 100vh;
+    }
+    .phone {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: rgba(255,255,255,.66);
+      border-left: 1px solid rgba(220,234,245,.8);
+      border-right: 1px solid rgba(220,234,245,.8);
+      padding: 22px 20px 100px;
+    }
+    .center { text-align: center; }
+    .logo {
+      width: 128px;
+      height: 128px;
+      border-radius: 32px;
+      object-fit: contain;
+      background: white;
+      box-shadow: 0 18px 34px rgba(88,204,2,.18);
+    }
+    h1 { margin: 18px 0 6px; color: #1579d5; font-size: 38px; line-height: 1; }
+    h2 { margin: 0 0 8px; font-size: 25px; line-height: 1.15; }
+    p { margin: 0; color: var(--muted); font-weight: 750; line-height: 1.45; }
+    .card {
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 18px;
+      box-shadow: 0 16px 34px rgba(28,176,246,.08);
+      margin-top: 18px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #fff, #effff8 55%, #fff4fd);
+    }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .grow { flex: 1; min-width: 0; }
+    .icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      background: var(--soft-blue);
+      border-radius: 16px;
+      color: var(--blue);
+      font-size: 24px;
+      font-weight: 900;
+      flex: none;
+    }
+    .btn {
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+      min-height: 54px;
+      color: white;
+      font-size: 16px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--blue), var(--green));
+      box-shadow: 0 12px 22px rgba(28,176,246,.18);
+      cursor: pointer;
+      margin-top: 14px;
+    }
+    .btn.secondary {
+      color: var(--ink);
+      background: white;
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+    .hidden { display: none; }
+    .stepper {
+      display: grid;
+      grid-template-columns: 1fr 24px 1fr 24px 1fr;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+    .step { text-align: center; font-weight: 900; font-size: 13px; }
+    .dot {
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 5px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: white;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .step.active .dot { background: var(--green); color: white; border-color: var(--green); }
+    .bar { height: 2px; background: var(--line); }
+    input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 18px;
+      font: inherit;
+      font-weight: 800;
+      color: var(--ink);
+      background: white;
+      margin-top: 10px;
+    }
+    label { display: block; margin-top: 14px; color: var(--muted); font-weight: 900; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .chip {
+      padding: 9px 12px;
+      background: var(--soft-blue);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-weight: 900;
+    }
+    .pill {
+      padding: 8px 12px;
+      background: var(--soft-green);
+      border-radius: 999px;
+      color: #219900;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .tabs {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: min(430px, 100%);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      background: rgba(255,255,255,.96);
+      border-top: 1px solid var(--line);
+      padding: 8px 8px 14px;
+      gap: 4px;
+    }
+    .tab {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      padding: 8px 0;
+    }
+    .tab.active {
+      color: var(--green);
+      background: var(--soft-green);
+      border-radius: 16px;
+    }
+    .small-hati {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      object-fit: contain;
+      background: white;
+      flex: none;
+    }
+    .big-hati {
+      width: 138px;
+      height: 138px;
+      border-radius: 30px;
+      object-fit: contain;
+      background: white;
+      flex: none;
+    }
+    .progress {
+      height: 12px;
+      border-radius: 999px;
+      background: #e8f1f8;
+      overflow: hidden;
+    }
+    .progress span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--blue), var(--green));
+    }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      background: var(--soft-green);
+      border: 1px solid rgba(88,204,2,.22);
+      border-radius: 24px;
+      padding: 14px;
+    }
+    .metric strong { display: block; font-size: 22px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <section id="start">
+      <div class="center">
+        <img class="logo" src="assets/images/hati-cheer.jpg" alt="HATI" />
+        <h1>LEVELOVE</h1>
+        <p>직원이 매일 들어오고 싶은<br />식당 성장 RPG 앱</p>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="icon">🏪</div>
+          <div class="grow">
+            <h2>사장님은 매장을 만들고</h2>
+            <p>직원 초대, 팀 챌린지, 리뷰 목표를 세팅해요.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="icon">💚</div>
+          <div class="grow">
+            <h2>직원은 초대 링크로 입장</h2>
+            <p>출근, 미션, 랭킹, 성장 기록을 가볍게 확인해요.</p>
+          </div>
+        </div>
+        <button class="btn" onclick="showOwner()">사장님으로 시작하기 🚀</button>
+        <button class="btn secondary" onclick="showJoin()">직원 앱 미리보기</button>
+      </div>
+    </section>
+
+    <section id="owner" class="hidden">
+      <div class="card hero">
+        <div class="stepper">
+          <div class="step active"><div class="dot">1</div>계정</div>
+          <div class="bar"></div>
+          <div class="step active"><div class="dot">2</div>매장</div>
+          <div class="bar"></div>
+          <div class="step active"><div class="dot">3</div>초대</div>
+        </div>
+        <h2>도야짬뽕 직원 초대</h2>
+        <p>직원은 링크로 들어와 언어와 프로필만 설정하면 바로 앱을 쓸 수 있어요.</p>
+        <label>매장명</label>
+        <input value="도야짬뽕" />
+        <label>직원 수</label>
+        <input value="8" />
+        <div class="chips">
+          <span class="chip">홀 미션</span>
+          <span class="chip">주방 청소</span>
+          <span class="chip">리뷰 챌린지</span>
+          <span class="chip">클레임 ZERO</span>
+        </div>
+        <div class="card" style="margin-top:16px;background:var(--soft-green)">
+          <b>초대 링크</b>
+          <p style="margin-top:8px;color:var(--ink)">https://levelove.app/join/DOYA-8F2K</p>
+        </div>
+        <button class="btn" onclick="showAdmin()">관리자 대시보드 보기</button>
+        <button class="btn secondary" onclick="showApp()">직원 앱 미리보기</button>
+      </div>
+    </section>
+
+    <section id="join" class="hidden">
+      <div class="card">
+        <div class="row">
+          <img class="small-hati" src="assets/images/hati-happy.jpg" alt="HATI" />
+          <div>
+            <h2>도야짬뽕에 초대됐어요</h2>
+            <p>초대 링크를 확인하고 언어를 골라주세요.</p>
+          </div>
+        </div>
+        <label>언어 선택</label>
+        <select>
+          <option>한국어</option>
+          <option>Tiếng Việt</option>
+        </select>
+        <label>이름</label>
+        <input value="홍지원 A" />
+        <label>역할</label>
+        <select>
+          <option>홀 크루</option>
+          <option>주방 크루</option>
+          <option>마케팅</option>
+        </select>
+        <button class="btn" onclick="showApp()">앱 시작하기</button>
+      </div>
+    </section>
+
+    <section id="app" class="hidden">
+      <div class="card hero">
+        <div class="row">
+          <div class="grow">
+            <p style="color:var(--blue)">오늘도 LEVO와 함께!</p>
+            <h2>안녕하세요, 홍지원님!</h2>
+            <p>오늘도 멋진 하루 보내세요.</p>
+          </div>
+          <span class="pill">Lv.15</span>
+        </div>
+        <div class="row" style="margin-top:18px">
+          <div class="card grow" style="margin:0">
+            <h2>Lv.15</h2>
+            <p>1,350 / 2,000 XP</p>
+            <div class="progress" style="margin-top:12px"><span style="width:67%"></span></div>
+          </div>
+          <img class="big-hati" src="assets/images/hati-cheer.jpg" alt="HATI" />
+        </div>
+        <button class="btn">출근 체크하기</button>
+      </div>
+      <div class="card">
+        <div class="row">
+          <img class="small-hati" src="assets/images/hati-happy.jpg" alt="HATI" />
+          <div class="grow">
+            <p style="color:var(--blue)">오늘의 메인 퀘스트</p>
+            <h2>고객 미소 리뷰 1개 도전!</h2>
+            <p>1/5개 완료 중</p>
+          </div>
+          <span class="pill">+10 XP</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <h2 class="grow">이번 주 팀 챌린지 💚</h2>
+          <b>12 / 30</b>
+        </div>
+        <p>고객 미소 챌린지</p>
+        <div class="progress" style="margin-top:12px"><span style="width:40%"></span></div>
+        <p style="margin-top:12px;color:var(--green)">조금만 더 힘내요!</p>
+      </div>
+    </section>
+
+    <section id="admin" class="hidden">
+      <div class="card">
+        <div class="row">
+          <img class="small-hati" src="assets/images/hati-cheer.jpg" alt="HATI" />
+          <div>
+            <h2>매장 대시보드</h2>
+            <p>오늘 매장 분위기와 직원 성장을 한눈에 확인해요.</p>
+          </div>
+        </div>
+      </div>
+      <div class="metric-grid" style="margin-top:14px">
+        <div class="metric">승인 대기<strong>3건</strong></div>
+        <div class="metric">주간 리뷰<strong>12/30</strong></div>
+        <div class="metric">클레임<strong>0건</strong></div>
+        <div class="metric">팀 챌린지<strong>진행중</strong></div>
+      </div>
+      <div class="card">
+        <h2>최근 활동</h2>
+        <p>💚 홍지원 A님이 고객 미소 리뷰 미션을 완료했어요.</p>
+        <p style="margin-top:10px">🧹 주방직원 B님이 클린 미션을 완료했어요.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs hidden" id="tabs">
+    <button class="tab active" onclick="showApp()">홈</button>
+    <button class="tab">출근</button>
+    <button class="tab">미션</button>
+    <button class="tab">랭킹</button>
+    <button class="tab">마이</button>
+  </nav>
+
+  <script>
+    const ids = ["start", "owner", "join", "app", "admin"];
+    function show(id) {
+      ids.forEach((name) => document.getElementById(name).classList.toggle("hidden", name !== id));
+      document.getElementById("tabs").classList.toggle("hidden", id !== "app");
+      scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function showOwner() { show("owner"); }
+    function showJoin() { show("join"); }
+    function showApp() { show("app"); }
+    function showAdmin() { show("admin"); }
+  </script>
+</body>
+</html>

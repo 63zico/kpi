@@ -1,0 +1,2674 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Levelove Launch Flow</title>
+  <style>
+    :root {
+      --ink:#10243f;
+      --muted:#6e8199;
+      --blue:#1cb0f6;
+      --deep:#1769ff;
+      --green:#58cc02;
+      --mint:#21d6b5;
+      --purple:#8e67ff;
+      --pink:#ff78c7;
+      --gold:#ffc83d;
+      --line:#dceaf5;
+      --soft-blue:#eff9ff;
+      --soft-green:#f1ffe9;
+      --soft-purple:#f4f0ff;
+      --soft-gold:#fff8dc;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      color:var(--ink);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at top left,rgba(28,176,246,.18),transparent 30%),
+        radial-gradient(circle at top right,rgba(255,120,199,.16),transparent 26%),
+        linear-gradient(135deg,#f7fcff,#fff7fd 45%,#effff5);
+    }
+    .app {
+      max-width:430px;
+      min-height:100vh;
+      margin:0 auto;
+      padding:20px 18px 34px;
+      background:rgba(255,255,255,.68);
+    }
+    .card {
+      margin:14px 0;
+      padding:18px;
+      border:1px solid var(--line);
+      border-radius:30px;
+      background:rgba(255,255,255,.94);
+      box-shadow:0 16px 36px rgba(28,176,246,.08);
+    }
+    .hero {
+      position:relative;
+      overflow:hidden;
+      background:linear-gradient(135deg,#fff,#effff8 55%,#fff3fc);
+    }
+    .hero:before {
+      content:"";
+      position:absolute;
+      width:220px;
+      height:220px;
+      right:-90px;
+      top:-90px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(88,204,2,.18),transparent 64%);
+    }
+    .hero > * { position:relative; z-index:1; }
+    h1 {
+      margin:10px 0 4px;
+      color:var(--deep);
+      font-size:38px;
+      line-height:1;
+      font-weight:950;
+    }
+    h2 {
+      margin:0 0 7px;
+      font-size:25px;
+      line-height:1.16;
+      font-weight:950;
+      letter-spacing:0;
+    }
+    h3 {
+      margin:0 0 4px;
+      font-size:18px;
+      font-weight:950;
+    }
+    p {
+      margin:0;
+      color:var(--muted);
+      line-height:1.45;
+      font-weight:760;
+    }
+    label {
+      display:block;
+      margin:13px 0 7px;
+      color:var(--muted);
+      font-weight:900;
+    }
+    input,
+    select {
+      width:100%;
+      min-height:52px;
+      padding:0 16px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+      font-weight:850;
+    }
+    .hati {
+      width:112px;
+      height:112px;
+      object-fit:contain;
+      border-radius:28px;
+      background:#fff;
+      box-shadow:0 14px 28px rgba(88,204,2,.16);
+    }
+    .hati-sm {
+      width:68px;
+      height:68px;
+      object-fit:contain;
+      border-radius:20px;
+      background:#fff;
+    }
+    .row {
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .grow { flex:1; min-width:0; }
+    .btn {
+      width:100%;
+      min-height:56px;
+      margin-top:14px;
+      border:0;
+      border-radius:20px;
+      color:white;
+      font-size:16px;
+      font-weight:950;
+      background:linear-gradient(135deg,var(--blue),var(--mint),var(--green));
+      box-shadow:0 13px 24px rgba(28,176,246,.2);
+      cursor:pointer;
+    }
+    .btn.sub {
+      color:var(--ink);
+      background:white;
+      border:1px solid var(--line);
+      box-shadow:none;
+    }
+    .hidden { display:none; }
+    .progress {
+      height:11px;
+      margin-top:10px;
+      overflow:hidden;
+      border-radius:99px;
+      background:#e8f1f8;
+    }
+    .progress > span {
+      display:block;
+      height:100%;
+      border-radius:99px;
+      background:linear-gradient(135deg,var(--blue),var(--green));
+    }
+    .chip {
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      padding:9px 12px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:var(--soft-blue);
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .pill {
+      display:inline-flex;
+      margin-bottom:10px;
+      padding:7px 11px;
+      border-radius:999px;
+      color:#168000;
+      background:var(--soft-green);
+      font-weight:950;
+    }
+    .check {
+      width:30px;
+      height:30px;
+      flex:none;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:var(--green);
+      color:white;
+      font-weight:950;
+    }
+    .metric {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+    .mini {
+      padding:14px;
+      border:1px solid rgba(88,204,2,.25);
+      border-radius:22px;
+      background:var(--soft-green);
+      color:var(--muted);
+      font-weight:850;
+    }
+    .mini strong {
+      display:block;
+      margin-top:6px;
+      color:var(--ink);
+      font-size:22px;
+    }
+    .method {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin-top:10px;
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:white;
+      cursor:pointer;
+    }
+    .method.active {
+      border-color:rgba(88,204,2,.35);
+      background:var(--soft-green);
+    }
+    .setup-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+    .setup-tile {
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:rgba(255,255,255,.9);
+    }
+    .setup-tile.active {
+      border-color:rgba(88,204,2,.4);
+      background:linear-gradient(135deg,#f1ffe9,#eff9ff);
+    }
+    .setup-tile b {
+      display:block;
+      margin-bottom:5px;
+      font-size:15px;
+      font-weight:950;
+    }
+    .setup-tile small {
+      color:var(--muted);
+      font-weight:800;
+      line-height:1.35;
+    }
+    .summary-list {
+      display:grid;
+      gap:8px;
+      margin-top:12px;
+    }
+    .summary-row {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding:11px 12px;
+      border-radius:18px;
+      background:rgba(255,255,255,.82);
+      border:1px solid rgba(220,234,245,.9);
+      font-weight:900;
+    }
+    .summary-row span {
+      color:var(--muted);
+      font-weight:850;
+    }
+    .score-pair {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+    .score-card {
+      padding:14px;
+      border-radius:22px;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+    .score-card strong {
+      display:block;
+      margin:6px 0;
+      font-size:20px;
+      font-weight:950;
+    }
+    .template-choice {
+      display:grid;
+      gap:10px;
+      margin-top:14px;
+    }
+    .template-choice .method {
+      align-items:flex-start;
+      margin-top:0;
+      position:relative;
+      gap:13px;
+      padding:15px 15px 15px 13px;
+      border-radius:24px;
+      background:linear-gradient(135deg,#fff,#f8fcff);
+      border-color:#d7e9f7;
+      box-shadow:0 10px 22px rgba(16,36,63,.04);
+      overflow:hidden;
+    }
+    .template-choice .method:before {
+      content:"";
+      position:absolute;
+      inset:0 auto 0 0;
+      width:5px;
+      background:transparent;
+    }
+    .template-choice .method.active {
+      background:linear-gradient(135deg,#ffffff,#f5fffb);
+      border-color:#95ddff;
+      box-shadow:0 14px 30px rgba(28,176,246,.12);
+    }
+    .template-choice .method.active:before {
+      background:linear-gradient(180deg,var(--blue),var(--mint),var(--green));
+    }
+    .template-choice .check,
+    .template-choice .icon {
+      width:38px;
+      height:38px;
+      border-radius:15px;
+      margin-top:1px;
+      font-size:18px;
+      box-shadow:none;
+    }
+    .template-choice .check {
+      background:linear-gradient(135deg,var(--blue),var(--mint));
+    }
+    .template-choice .icon {
+      color:#1296db;
+      background:#eef8ff;
+    }
+    .template-choice .method h3 {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin:0 0 6px;
+      font-size:20px;
+    }
+    .template-choice .method p {
+      font-size:15px;
+      line-height:1.48;
+      color:#637891;
+    }
+    .template-badge {
+      padding:5px 8px;
+      border-radius:999px;
+      background:#eef8ff;
+      color:#1296db;
+      font-size:11px;
+      font-weight:950;
+      white-space:nowrap;
+    }
+    .template-choice .option-list {
+      gap:6px;
+      margin-top:10px;
+    }
+    .template-choice .option-chip {
+      padding:6px 9px;
+      color:#39506b;
+      background:#f6fbff;
+      border-color:#e0edf7;
+      box-shadow:none;
+    }
+    .template-choice .option-chip.active {
+      color:#0c6b78;
+      background:#f1fffb;
+      border-color:#b8efe2;
+      box-shadow:none;
+    }
+    .role-picker {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:9px;
+      margin-top:9px;
+    }
+    .role-picker .option-chip {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:44px;
+      border-radius:16px;
+      font-size:14px;
+      background:#fff;
+    }
+    .mode-switch {
+      display:grid;
+      gap:9px;
+      margin-top:9px;
+    }
+    .mode-switch .method {
+      margin-top:0;
+      padding:13px;
+      border-radius:18px;
+      align-items:center;
+      background:#fff;
+      box-shadow:none;
+    }
+    .mode-switch .method.active {
+      background:linear-gradient(135deg,#f5fffb,#f4fbff);
+      border-color:#95ddff;
+    }
+    .mode-switch .method h3 {
+      display:block;
+      margin:0 0 2px;
+      font-size:16px;
+    }
+    .mode-switch .method p {
+      font-size:13px;
+    }
+    .recommend-card {
+      display:flex;
+      gap:13px;
+      align-items:flex-start;
+      margin-top:9px;
+      padding:16px;
+      border:1px solid #95ddff;
+      border-radius:24px;
+      background:linear-gradient(135deg,#ffffff,#f4fffb);
+      box-shadow:0 14px 30px rgba(28,176,246,.1);
+    }
+    .recommend-card .check {
+      width:38px;
+      height:38px;
+      border-radius:15px;
+      background:linear-gradient(135deg,var(--blue),var(--mint));
+      margin-top:2px;
+    }
+    .recommend-card h3 {
+      font-size:20px;
+      margin-bottom:4px;
+    }
+    .recommend-card p {
+      font-size:15px;
+      color:#637891;
+    }
+    .recommend-card .info-chip {
+      display:inline-flex;
+      align-items:center;
+      padding:6px 9px;
+      border:1px solid #b8efe2;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      color:#0c6b78;
+      background:#f1fffb;
+      box-shadow:none;
+    }
+    .recommend-card .info-chip::before {
+      content:"✓";
+      display:inline-grid;
+      place-items:center;
+      width:16px;
+      height:16px;
+      margin-right:5px;
+      border-radius:50%;
+      background:#fff;
+      color:#16a34a;
+      font-size:11px;
+      font-weight:950;
+    }
+    .quick-summary {
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:10px;
+      margin-top:14px;
+    }
+    .quick-summary .mini {
+      min-height:78px;
+    }
+    .invite-panel {
+      display:grid;
+      gap:14px;
+      margin-top:16px;
+    }
+    .invite-link-card {
+      padding:16px;
+      border:1px solid rgba(28,176,246,.22);
+      border-radius:24px;
+      background:linear-gradient(135deg,#ffffff,#f3fffb);
+      box-shadow:0 14px 30px rgba(28,176,246,.08);
+    }
+    .invite-link-card code {
+      display:block;
+      margin-top:8px;
+      padding:12px;
+      border-radius:16px;
+      background:#f7fbff;
+      color:#0b2848;
+      font-size:13px;
+      font-weight:850;
+      overflow-wrap:anywhere;
+      border:1px solid var(--line);
+    }
+    .invite-actions {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+    .invite-actions .btn {
+      min-height:46px;
+      padding:12px 14px;
+      font-size:14px;
+      border-radius:16px;
+    }
+    .role-invite-grid {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+    .role-invite {
+      padding:13px;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#fff;
+    }
+    .role-invite b {
+      display:block;
+      margin-bottom:3px;
+      color:var(--ink);
+    }
+    .role-invite span {
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+    }
+    .invite-note {
+      padding:14px;
+      border-radius:22px;
+      border:1px solid rgba(88,204,2,.22);
+      background:linear-gradient(135deg,#f6ffef,#f4fbff);
+      color:#365875;
+      font-weight:850;
+      line-height:1.5;
+    }
+    .preview-actions {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:16px;
+    }
+    .approval-list {
+      display:grid;
+      gap:12px;
+      margin-top:14px;
+    }
+    .approval-card {
+      position:relative;
+      padding:16px;
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:rgba(255,255,255,.92);
+      box-shadow:0 12px 30px rgba(15,56,94,.06);
+      transition:.2s ease;
+    }
+    .approval-card.is-approved {
+      border-color:rgba(88,204,2,.56);
+      background:linear-gradient(135deg,#ffffff,#f2ffec);
+      box-shadow:0 16px 34px rgba(88,204,2,.14);
+    }
+    .approval-card.is-rejected {
+      border-color:rgba(255,139,115,.55);
+      background:linear-gradient(135deg,#ffffff,#fff4ef);
+      box-shadow:0 16px 34px rgba(255,139,115,.12);
+    }
+    .approval-card .topline {
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-start;
+    }
+    .approval-card h3 {
+      margin:0;
+      font-size:18px;
+    }
+    .approval-card p {
+      margin:6px 0 0;
+      font-size:14px;
+    }
+    .approval-card .reward {
+      flex:none;
+      padding:8px 10px;
+      border-radius:999px;
+      background:#ecffe4;
+      color:#229600;
+      font-weight:950;
+      font-size:13px;
+    }
+    .score-badges {
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+      margin-top:10px;
+    }
+    .score-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      padding:7px 9px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:950;
+      white-space:nowrap;
+      border:1px solid transparent;
+    }
+    .score-badge.xp {
+      color:#1266d6;
+      background:#eef7ff;
+      border-color:#cce8ff;
+    }
+    .score-badge.ops {
+      color:#0b7f34;
+      background:#efffe9;
+      border-color:#c8f4b8;
+    }
+    .score-explainer {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:14px;
+    }
+    .score-explainer-card {
+      padding:14px;
+      border-radius:22px;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+    .score-explainer-card strong {
+      display:block;
+      margin-bottom:5px;
+      color:var(--ink);
+      font-size:15px;
+      font-weight:950;
+    }
+    .score-explainer-card p {
+      font-size:12px;
+      line-height:1.4;
+    }
+    .score-explainer-card.xp {
+      border-color:#cce8ff;
+      background:linear-gradient(135deg,#ffffff,#f1f9ff);
+    }
+    .score-explainer-card.ops {
+      border-color:#c8f4b8;
+      background:linear-gradient(135deg,#ffffff,#f2ffed);
+    }
+    .approval-detail {
+      margin-top:12px;
+      padding:12px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#f7fbff,#f5fffb);
+      color:#365875;
+      font-size:13px;
+      font-weight:850;
+      line-height:1.55;
+    }
+    .approval-actions {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:12px;
+    }
+    .approval-actions .btn {
+      min-height:44px;
+      padding:11px 12px;
+      border-radius:16px;
+      font-size:14px;
+    }
+    .approval-result {
+      display:none;
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      background:#f1fffb;
+      color:#0c6b78;
+      font-size:13px;
+      font-weight:950;
+      line-height:1.4;
+    }
+    .approval-result.is-visible {
+      display:block;
+    }
+    .launch-checklist,
+    .admin-command-grid {
+      display:grid;
+      gap:10px;
+      margin-top:14px;
+    }
+    .launch-checklist {
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+    }
+    .launch-check {
+      padding:14px;
+      border-radius:22px;
+      border:1px solid rgba(149,221,255,.82);
+      background:linear-gradient(135deg,#ffffff,#f5fffb);
+      box-shadow:0 12px 26px rgba(28,176,246,.08);
+    }
+    .launch-check span,
+    .admin-command span {
+      display:inline-grid;
+      place-items:center;
+      width:30px;
+      height:30px;
+      border-radius:12px;
+      margin-bottom:8px;
+      color:#0a8fcb;
+      background:#ecf9ff;
+      font-weight:950;
+    }
+    .launch-check strong,
+    .admin-command strong {
+      display:block;
+      color:var(--ink);
+      font-size:15px;
+      font-weight:950;
+      margin-bottom:4px;
+    }
+    .launch-check p,
+    .admin-command p {
+      margin:0;
+      color:#607791;
+      font-size:12px;
+      font-weight:850;
+      line-height:1.45;
+    }
+    .admin-command-grid {
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+    .admin-command {
+      border:1px solid var(--line);
+      border-radius:24px;
+      padding:16px;
+      background:rgba(255,255,255,.92);
+      box-shadow:0 12px 28px rgba(15,56,94,.06);
+      text-align:left;
+      font-family:inherit;
+      cursor:pointer;
+    }
+    .admin-command.primary {
+      border-color:rgba(88,204,2,.52);
+      background:linear-gradient(135deg,#ffffff,#f0ffe9);
+    }
+    .admin-command.primary span {
+      color:#168000;
+      background:#e9ffdc;
+    }
+    .employee-preview {
+      padding:14px;
+      border-radius:34px;
+      background:
+        radial-gradient(circle at 10% 0%,rgba(88,204,2,.16),transparent 36%),
+        radial-gradient(circle at 95% 18%,rgba(28,176,246,.14),transparent 32%),
+        linear-gradient(180deg,#f9fffb,#f5fbff);
+      border:1px solid rgba(149,221,255,.72);
+      box-shadow:0 18px 38px rgba(28,176,246,.12);
+    }
+    .employee-preview .phone-status {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+      padding:10px 14px;
+      border-radius:999px;
+      background:rgba(255,255,255,.9);
+      box-shadow:0 10px 22px rgba(15,56,94,.06);
+    }
+    .employee-preview .phone-status span {
+      color:#5b7190;
+      font-size:12px;
+      font-weight:950;
+    }
+    .employee-preview .phone-status strong {
+      padding:7px 13px;
+      border-radius:999px;
+      color:#168000;
+      background:#f0ffe9;
+      border:1px solid rgba(88,204,2,.34);
+      font-size:14px;
+    }
+    .doya-home-hero {
+      position:relative;
+      overflow:hidden;
+      padding:18px;
+      border-radius:30px;
+      border:1px solid rgba(149,221,255,.8);
+      background:linear-gradient(135deg,#ffffff,#effff8 58%,#fff2fb);
+      box-shadow:0 16px 34px rgba(28,176,246,.1);
+    }
+    .doya-home-hero::before {
+      content:"";
+      position:absolute;
+      inset:auto -60px -80px auto;
+      width:190px;
+      height:190px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(88,204,2,.18),transparent 67%);
+    }
+    .doya-greeting {
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .doya-greeting small {
+      display:block;
+      color:var(--blue);
+      font-size:12px;
+      font-weight:950;
+      margin-bottom:5px;
+    }
+    .doya-greeting h2 {
+      font-size:25px;
+    }
+    .doya-bell {
+      width:44px;
+      height:44px;
+      border:0;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 10px 24px rgba(15,56,94,.08);
+      font-size:22px;
+    }
+    .doya-hero-main {
+      position:relative;
+      z-index:1;
+      display:grid;
+      grid-template-columns:1fr 128px;
+      gap:14px;
+      align-items:center;
+      margin-top:16px;
+    }
+    .doya-level-card {
+      padding:16px;
+      border-radius:24px;
+      background:rgba(255,255,255,.88);
+      box-shadow:0 12px 28px rgba(15,56,94,.07);
+    }
+    .doya-level-ring {
+      width:106px;
+      height:106px;
+      margin:0 auto 10px;
+      border-radius:50%;
+      display:grid;
+      place-items:center;
+      background:conic-gradient(var(--blue) 0 68%, #e8f1f8 68% 100%);
+    }
+    .doya-level-ring div {
+      width:78px;
+      height:78px;
+      border-radius:50%;
+      display:grid;
+      place-items:center;
+      background:#fff;
+      text-align:center;
+      font-weight:950;
+      line-height:1.05;
+    }
+    .doya-level-card p {
+      text-align:center;
+      font-size:13px;
+    }
+    .doya-hati-stage {
+      width:128px;
+      height:148px;
+      border-radius:30px;
+      object-fit:contain;
+      background:#fff;
+      box-shadow:0 16px 28px rgba(88,204,2,.14);
+      animation:hatiFloat 3.8s ease-in-out infinite;
+    }
+    .doya-stat-grid {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:14px;
+    }
+    .doya-stat {
+      padding:13px;
+      border-radius:20px;
+      background:#fff;
+      border:1px solid rgba(220,234,245,.9);
+      box-shadow:0 10px 22px rgba(15,56,94,.05);
+    }
+    .doya-stat span {
+      display:block;
+      color:#6e8199;
+      font-size:12px;
+      font-weight:900;
+    }
+    .doya-stat strong {
+      display:block;
+      margin-top:4px;
+      font-size:20px;
+      font-weight:950;
+    }
+    .doya-checkin-btn {
+      margin-top:14px;
+      width:100%;
+      min-height:56px;
+      border:0;
+      border-radius:18px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--green),var(--mint),var(--blue));
+      box-shadow:0 14px 24px rgba(28,176,246,.2);
+      font-size:17px;
+      font-weight:950;
+    }
+    .doya-caption {
+      display:block;
+      margin-top:9px;
+      text-align:center;
+      color:#7b8da6;
+      font-size:12px;
+      font-weight:850;
+    }
+    .doya-team-card,
+    .doya-feed-card {
+      margin-top:14px;
+      padding:16px;
+      border-radius:26px;
+      border:1px solid rgba(149,221,255,.78);
+      background:rgba(255,255,255,.9);
+      box-shadow:0 13px 26px rgba(28,176,246,.08);
+    }
+    .doya-team-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .doya-team-head small {
+      display:block;
+      color:var(--blue);
+      font-size:11px;
+      font-weight:950;
+    }
+    .doya-team-head strong {
+      display:block;
+      margin-top:2px;
+      font-size:18px;
+      font-weight:950;
+    }
+    .doya-team-score {
+      font-weight:950;
+      color:#0b2848;
+    }
+    .doya-team-row {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:12px;
+      padding:12px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#ffffff,#f7fffb);
+      font-weight:900;
+    }
+    .doya-feed-card h3 {
+      margin-bottom:10px;
+    }
+    .doya-feed-card p {
+      padding:10px 0;
+      border-top:1px solid #edf4fa;
+      font-size:13px;
+    }
+    .doya-tabbar {
+      position:sticky;
+      bottom:12px;
+      z-index:2;
+      display:grid;
+      grid-template-columns:repeat(6, minmax(0, 1fr));
+      gap:6px;
+      margin-top:16px;
+      padding:8px;
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:rgba(255,255,255,.94);
+      box-shadow:0 14px 30px rgba(15,56,94,.12);
+    }
+    .doya-tabbar span,
+    .doya-tabbar button {
+      min-height:48px;
+      display:grid;
+      place-items:center;
+      border-radius:17px;
+      border:0;
+      background:transparent;
+      color:#617794;
+      font-size:11px;
+      font-weight:950;
+      font-family:inherit;
+      cursor:pointer;
+    }
+    .doya-tabbar .active {
+      color:#168000;
+      background:#f0ffe9;
+      border:1px solid rgba(88,204,2,.32);
+    }
+    .quest-page-header {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:16px;
+      border:1px solid rgba(149,221,255,.78);
+      border-radius:26px;
+      background:linear-gradient(135deg,#ffffff,#f4fffb);
+      box-shadow:0 13px 26px rgba(28,176,246,.08);
+    }
+    .quest-page-header h2 {
+      margin-bottom:4px;
+      font-size:23px;
+    }
+    .quest-section {
+      margin-top:14px;
+      padding:16px;
+      border:1px solid rgba(220,234,245,.9);
+      border-radius:26px;
+      background:rgba(255,255,255,.92);
+      box-shadow:0 12px 26px rgba(15,56,94,.05);
+    }
+    .mission-grid {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+    .mission-tile {
+      min-height:132px;
+      padding:14px;
+      border:1px solid rgba(149,221,255,.8);
+      border-radius:24px;
+      background:linear-gradient(135deg,#ffffff,#f4fffb);
+      box-shadow:0 10px 22px rgba(28,176,246,.06);
+    }
+    .mission-tile .emoji {
+      width:40px;
+      height:40px;
+      display:grid;
+      place-items:center;
+      margin-bottom:9px;
+      border-radius:16px;
+      background:#f0ffe9;
+      font-size:21px;
+    }
+    .mission-tile strong {
+      display:block;
+      font-size:15px;
+      font-weight:950;
+      line-height:1.25;
+    }
+    .mission-tile small {
+      display:block;
+      margin-top:5px;
+      color:#168000;
+      font-weight:950;
+    }
+    .mission-tile button,
+    .small-action {
+      width:100%;
+      min-height:40px;
+      margin-top:10px;
+      border:0;
+      border-radius:14px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--green),var(--mint));
+      font-weight:950;
+      font-family:inherit;
+    }
+    .checkout-checklist {
+      display:grid;
+      gap:9px;
+      margin-top:12px;
+    }
+    .checkout-checklist label {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0;
+      padding:13px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:#fff;
+      color:var(--ink);
+      font-weight:900;
+    }
+    .checkout-checklist input {
+      width:22px;
+      min-height:22px;
+      accent-color:#58cc02;
+    }
+    .ranking-tabs {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:12px;
+      padding:6px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:#f2f8fd;
+    }
+    .ranking-tabs span,
+    .ranking-tabs button {
+      padding:10px;
+      border-radius:999px;
+      text-align:center;
+      font-size:13px;
+      font-weight:950;
+      color:#6e8199;
+      border:0;
+      background:transparent;
+      font-family:inherit;
+      cursor:pointer;
+    }
+    .ranking-tabs .active {
+      background:#fff;
+      color:var(--ink);
+      box-shadow:0 8px 16px rgba(15,56,94,.07);
+    }
+    .ranking-list {
+      display:grid;
+      gap:10px;
+      margin-top:12px;
+    }
+    .ranking-row {
+      display:grid;
+      grid-template-columns:42px 54px 1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:#fff;
+    }
+    .ranking-row .rank {
+      width:36px;
+      height:36px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:#eaffdf;
+      color:#1296db;
+      font-weight:950;
+    }
+    .ranking-row img,
+    .profile-avatar {
+      width:54px;
+      height:54px;
+      border-radius:18px;
+      object-fit:cover;
+      background:#fff;
+      box-shadow:0 8px 16px rgba(15,56,94,.08);
+    }
+    .ranking-row b {
+      display:block;
+      font-size:15px;
+    }
+    .ranking-row small {
+      color:#6e8199;
+      font-weight:850;
+    }
+    .ranking-row strong {
+      font-size:17px;
+      white-space:nowrap;
+    }
+    .profile-card {
+      display:grid;
+      grid-template-columns:86px 1fr;
+      gap:14px;
+      align-items:center;
+    }
+    .profile-card .profile-avatar {
+      width:86px;
+      height:86px;
+      border-radius:28px;
+    }
+    .profile-stats {
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px;
+      margin-top:12px;
+    }
+    .profile-stats .doya-stat {
+      padding:11px;
+    }
+    .trophy-shelf {
+      display:flex;
+      gap:9px;
+      margin-top:12px;
+      overflow-x:auto;
+      padding-bottom:4px;
+    }
+    .trophy {
+      min-width:82px;
+      padding:12px 10px;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#fff;
+      text-align:center;
+      font-size:12px;
+      font-weight:950;
+    }
+    .trophy span {
+      display:block;
+      margin-bottom:5px;
+      font-size:24px;
+    }
+    .peer-praise-card {
+      margin-top:12px;
+      padding:15px;
+      border:1px solid rgba(255,120,199,.28);
+      border-radius:24px;
+      background:linear-gradient(135deg,#fff,#fff3fb);
+      box-shadow:0 12px 26px rgba(255,120,199,.08);
+    }
+    .peer-praise-card .row {
+      align-items:flex-start;
+    }
+    .peer-praise-icon {
+      width:48px;
+      height:48px;
+      display:grid;
+      place-items:center;
+      flex:none;
+      border-radius:18px;
+      background:#fff;
+      font-size:25px;
+      box-shadow:0 10px 20px rgba(255,120,199,.12);
+    }
+    .praise-options {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:12px;
+    }
+    .praise-targets {
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px;
+      margin-top:12px;
+    }
+    .praise-targets button,
+    .praise-options button {
+      min-height:42px;
+      border:1px solid rgba(255,120,199,.25);
+      border-radius:16px;
+      background:#fff;
+      color:var(--ink);
+      font-weight:950;
+      font-family:inherit;
+      cursor:pointer;
+    }
+    .praise-targets button {
+      display:grid;
+      gap:4px;
+      place-items:center;
+      min-height:70px;
+      padding:8px 6px;
+      font-size:12px;
+    }
+    .praise-targets img {
+      width:34px;
+      height:34px;
+      border-radius:13px;
+      object-fit:cover;
+      background:#fff;
+    }
+    .praise-targets button.is-complete,
+    .praise-options button.is-complete {
+      color:#168000;
+      border-color:rgba(88,204,2,.42);
+      background:#f0ffe9;
+    }
+    .demo-feedback {
+      display:none;
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      background:#effff5;
+      color:#168000;
+      font-size:13px;
+      font-weight:950;
+    }
+    .demo-feedback.is-visible {
+      display:block;
+    }
+    .mission-tile.is-complete {
+      border-color:rgba(88,204,2,.48);
+      background:linear-gradient(135deg,#f3ffed,#f4fffb);
+    }
+    .mission-tile.is-complete button,
+    .small-action.is-complete,
+    .doya-checkin-btn.is-complete {
+      background:linear-gradient(135deg,#16a34a,#21d6b5);
+    }
+    .profile-settings-panel {
+      display:none;
+      margin-top:12px;
+      padding:14px;
+      border:1px solid rgba(28,176,246,.22);
+      border-radius:22px;
+      background:linear-gradient(135deg,#ffffff,#f4fbff);
+    }
+    .profile-settings-panel.is-visible {
+      display:block;
+    }
+    .settings-row {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:10px 0;
+      border-top:1px solid #edf4fa;
+    }
+    .settings-row:first-child {
+      border-top:0;
+      padding-top:0;
+    }
+    .settings-row strong {
+      display:block;
+      font-size:14px;
+    }
+    .settings-row small {
+      color:var(--muted);
+      font-weight:850;
+    }
+    .profile-upload-input {
+      display:none;
+    }
+    .mood-check-card {
+      margin-top:14px;
+      padding:16px;
+      border:1px solid rgba(255,200,61,.34);
+      border-radius:26px;
+      background:linear-gradient(135deg,#ffffff,#fffbed);
+      box-shadow:0 12px 26px rgba(255,200,61,.08);
+    }
+    .mood-options {
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:8px;
+      margin-top:12px;
+    }
+    .mood-options button {
+      min-height:74px;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#fff;
+      color:var(--ink);
+      font-family:inherit;
+      font-weight:950;
+      cursor:pointer;
+    }
+    .mood-options button span {
+      display:block;
+      margin-bottom:5px;
+      font-size:25px;
+    }
+    .mood-options button.is-complete {
+      color:#168000;
+      border-color:rgba(88,204,2,.42);
+      background:#f0ffe9;
+    }
+    .attendance-calendar {
+      margin-top:12px;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:#fff;
+    }
+    .calendar-head,
+    .calendar-grid {
+      display:grid;
+      grid-template-columns:repeat(7, minmax(0, 1fr));
+      gap:6px;
+    }
+    .calendar-head span {
+      text-align:center;
+      color:#7b8da6;
+      font-size:11px;
+      font-weight:950;
+    }
+    .calendar-grid {
+      margin-top:8px;
+    }
+    .calendar-day {
+      min-height:38px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:#f7fbff;
+      color:#8ca0b8;
+      font-size:12px;
+      font-weight:950;
+    }
+    .calendar-day.present {
+      color:#168000;
+      background:#efffe9;
+      border:1px solid rgba(88,204,2,.32);
+    }
+    .calendar-day.today {
+      color:#fff;
+      background:linear-gradient(135deg,var(--green),var(--mint));
+      box-shadow:0 8px 16px rgba(88,204,2,.18);
+    }
+    .calendar-day.empty {
+      background:transparent;
+      border:0;
+    }
+    .checkin-done-card {
+      padding:22px;
+      text-align:center;
+      border-radius:30px;
+      background:#fff;
+      border:1px solid var(--line);
+      box-shadow:0 18px 38px rgba(28,176,246,.1);
+    }
+    .checkin-done-mark {
+      width:118px;
+      height:118px;
+      display:grid;
+      place-items:center;
+      margin:14px auto;
+      border-radius:50%;
+      color:#fff;
+      font-size:64px;
+      font-weight:950;
+      background:linear-gradient(135deg,var(--mint),var(--green));
+      box-shadow:0 18px 34px rgba(88,204,2,.26);
+    }
+    @keyframes hatiFloat {
+      0%, 100% { transform:translateY(0); }
+      50% { transform:translateY(-8px); }
+    }
+    .advanced-settings {
+      margin-top:14px;
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:rgba(255,255,255,.72);
+      overflow:hidden;
+    }
+    .advanced-settings summary {
+      cursor:pointer;
+      padding:16px;
+      font-weight:950;
+      color:var(--ink);
+      list-style:none;
+    }
+    .advanced-settings summary::-webkit-details-marker {
+      display:none;
+    }
+    .advanced-body {
+      display:grid;
+      gap:12px;
+      padding:0 16px 16px;
+    }
+    .advanced-group {
+      padding:14px;
+      border-radius:20px;
+      border:1px solid rgba(220,234,245,.9);
+      background:#fff;
+    }
+    .advanced-group h3 {
+      margin:0;
+      font-size:15px;
+    }
+    .advanced-group p {
+      margin:4px 0 0;
+      font-size:13px;
+    }
+    .option-list {
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+      margin-top:9px;
+    }
+    .option-chip {
+      padding:7px 10px;
+      border-radius:999px;
+      background:var(--soft-blue);
+      color:var(--ink);
+      font-size:12px;
+      font-weight:900;
+      border:1px solid var(--line);
+      cursor:pointer;
+      user-select:none;
+      transition:.16s ease;
+    }
+    .option-chip.active {
+      color:#0b7f34;
+      border-color:rgba(88,204,2,.45);
+      background:linear-gradient(135deg,#f0ffe9,#effcff);
+      box-shadow:0 8px 18px rgba(88,204,2,.12);
+    }
+    .option-chip::before {
+      content:"+";
+      display:inline-grid;
+      place-items:center;
+      width:16px;
+      height:16px;
+      margin-right:5px;
+      border-radius:50%;
+      background:#fff;
+      color:#1296db;
+      font-size:11px;
+      font-weight:950;
+    }
+    .option-chip.active::before {
+      content:"✓";
+      color:#16a34a;
+    }
+    .icon {
+      width:46px;
+      height:46px;
+      flex:none;
+      display:grid;
+      place-items:center;
+      border-radius:17px;
+      background:var(--soft-blue);
+      font-size:22px;
+    }
+    .stack { display:grid; gap:10px; }
+    .topbar {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:18px;
+      gap:8px;
+    }
+    @media (max-width:640px) {
+      .launch-checklist,
+      .admin-command-grid {
+        grid-template-columns:1fr;
+      }
+    }
+    @media (max-width:360px) {
+      .app { padding:14px 12px 28px; }
+      h1 { font-size:32px; }
+      h2 { font-size:22px; }
+      .metric { grid-template-columns:1fr; }
+      .setup-grid { grid-template-columns:1fr; }
+      .score-pair { grid-template-columns:1fr; }
+      .quick-summary { grid-template-columns:1fr; }
+      .topbar { align-items:flex-start; flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="start">
+      <div class="card hero" style="text-align:center;padding-top:28px">
+        <div class="topbar">
+          <span class="chip">Global beta</span>
+          <span class="chip">1계정 · 여러 매장</span>
+        </div>
+        <img class="hati" style="width:150px;height:150px" src="assets/hati/hati-happy-1.png" alt="HATI" />
+        <h1>LEVELOVE</h1>
+        <h2>매일의 근무를<br>직원 성장 RPG로</h2>
+        <p>먼저 개인 계정을 만들고, 그다음 사장님은 매장을 만들고 직원은 초대받은 매장에 합류합니다.</p>
+        <button class="btn" onclick="show('account')">시작하기</button>
+      </div>
+      <div class="metric">
+        <div class="mini">개인 계정<strong>계속 유지</strong></div>
+        <div class="mini">매장 기록<strong>매장별 분리</strong></div>
+      </div>
+      <div class="launch-checklist" aria-label="출시 준비 핵심">
+        <div class="launch-check">
+          <span>1</span>
+          <strong>직원은 초대만 받기</strong>
+          <p>가입 후 매장 링크나 코드로 연결되어 앱 사용을 바로 시작합니다.</p>
+        </div>
+        <div class="launch-check">
+          <span>2</span>
+          <strong>매장은 자동 세팅</strong>
+          <p>식당 유형과 역할만 고르면 기본 미션과 팀 목표가 추천됩니다.</p>
+        </div>
+        <div class="launch-check">
+          <span>3</span>
+          <strong>승인은 필요한 것만</strong>
+          <p>출근/미션은 자동 저장, 퇴근과 중요 기록만 매니저가 확인합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="account" class="hidden">
+      <div class="card hero">
+        <span class="pill">ACCOUNT</span>
+        <h2>개인 계정으로 시작</h2>
+        <p>직원이 다른 식당으로 이동해도 같은 계정을 계속 쓰고, 매장별 기록은 따로 보관됩니다.</p>
+        <button class="btn" onclick="show('profile')">전화번호로 계속하기</button>
+        <button class="btn sub" onclick="show('profile')">카카오로 계속하기</button>
+        <button class="btn sub" onclick="show('profile')">Google로 계속하기</button>
+        <button class="btn sub" onclick="show('profile')">Apple로 계속하기</button>
+      </div>
+    </section>
+
+    <section id="profile" class="hidden">
+      <div class="card" id="missionTemplatePanel">
+        <span class="pill">PROFILE</span>
+        <h2>내 프로필 만들기</h2>
+        <div style="text-align:center;margin:12px 0">
+          <img class="hati" src="assets/hati/hati-idle-3.png" alt="HATI" />
+        </div>
+        <label>이름</label>
+        <input value="홍지원" />
+        <label>기본 언어</label>
+        <select>
+          <option>한국어</option>
+          <option>English</option>
+          <option>Tiếng Việt</option>
+          <option>日本語</option>
+          <option>Español</option>
+        </select>
+        <button class="btn" onclick="show('role')">다음</button>
+      </div>
+    </section>
+
+    <section id="role" class="hidden">
+      <div class="card">
+        <span class="pill">NEXT STEP</span>
+        <h2>어떤 방식으로 시작할까요?</h2>
+        <div class="method active" onclick="show('owner')">
+          <div class="icon">🏪</div>
+          <div>
+            <h3>내 매장 만들기</h3>
+            <p>사장님 또는 운영자가 매장을 만들고 직원 초대 링크를 발급합니다.</p>
+          </div>
+        </div>
+        <div class="method" onclick="show('join')">
+          <div class="icon">🔗</div>
+          <div>
+            <h3>초대받은 매장에 합류</h3>
+            <p>초대 링크 또는 초대 코드로 매장에 연결합니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="owner" class="hidden">
+      <div class="card hero">
+        <span class="pill">STORE SETUP</span>
+        <h2>30초 안에<br>매장 세팅 끝내기</h2>
+        <p>처음에는 꼭 필요한 것만 고르고, 세부옵션은 나중에 언제든 바꿀 수 있게 숨겨둡니다.</p>
+        <label>매장명</label>
+        <input value="도야짬뽕" />
+        <label>매장 유형</label>
+        <select>
+          <option>일반 식당</option>
+          <option>카페 / 디저트</option>
+          <option>패스트푸드 / 프랜차이즈</option>
+          <option>술집 / 포차</option>
+          <option>배달 전문</option>
+          <option>기타</option>
+        </select>
+        <div class="quick-summary">
+          <div class="mini">언어<strong>직원이 직접 선택</strong></div>
+          <div class="mini">시간대<strong>자동 추천</strong></div>
+          <div class="mini">권한<strong>사장님 · 직원</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="pill">MISSION BUILDER</span>
+        <h2>역할만 고르면<br>운영 방식은 추천해드려요</h2>
+        <p>사장님이 관리 강도를 고르지 않아도 됩니다. LEVELOVE가 직원 부담이 적은 기본값으로 시작합니다.</p>
+        <label>1. 우리 매장에 어떤 역할이 있나요?</label>
+        <div class="role-picker">
+          <span class="option-chip setup-choice-chip active">홀</span>
+          <span class="option-chip setup-choice-chip active">주방</span>
+          <span class="option-chip setup-choice-chip">마케팅</span>
+          <span class="option-chip setup-choice-chip">매니저</span>
+        </div>
+        <label>LEVELOVE 추천 운영 방식</label>
+        <div class="recommend-card">
+          <div class="check">✓</div>
+          <div class="grow">
+            <h3>자동 저장 중심</h3>
+            <p>출근과 미션은 바로 저장하고, 퇴근 제출과 중요한 기록만 매니저가 리뷰합니다.</p>
+            <div class="option-list">
+              <span class="info-chip">출근 자동 저장</span>
+              <span class="info-chip">미션 자동 저장</span>
+              <span class="info-chip">퇴근 기록 리뷰</span>
+              <span class="info-chip">사진/문제 보고 리뷰</span>
+            </div>
+          </div>
+        </div>
+
+        <details class="advanced-settings">
+          <summary>세부옵션 조정하기</summary>
+          <div class="advanced-body">
+            <div class="advanced-group">
+              <h3>홀 미션</h3>
+              <p>고객 경험 성장을 기록합니다.</p>
+              <div class="option-list">
+                <span class="option-chip active">리뷰 요청</span>
+                <span class="option-chip active">멤버십</span>
+                <span class="option-chip active">추천메뉴</span>
+                <span class="option-chip active">업셀</span>
+                <span class="option-chip">칭찬 받기</span>
+              </div>
+            </div>
+            <div class="advanced-group">
+              <h3>주방 미션</h3>
+              <p>청소와 마감을 체크형으로 가볍게 기록합니다.</p>
+              <div class="option-list">
+                <span class="option-chip active">청소</span>
+                <span class="option-chip active">위생 체크</span>
+                <span class="option-chip">재료 보관</span>
+                <span class="option-chip">포장 누락 없음</span>
+                <span class="option-chip active">마감 체크</span>
+              </div>
+            </div>
+            <div class="advanced-group">
+              <h3>마케팅 미션</h3>
+              <p>마케팅 직원이 있을 때만 켭니다.</p>
+              <div class="option-list">
+                <span class="option-chip">숏폼 촬영</span>
+                <span class="option-chip">게시물 업로드</span>
+                <span class="option-chip">이벤트 기획</span>
+                <span class="option-chip">성과 보고</span>
+              </div>
+            </div>
+            <div class="advanced-group">
+              <h3>운영 방식</h3>
+              <p>출시는 자동 저장 중심으로 시작하는 편이 좋습니다.</p>
+              <div class="option-list">
+                <span class="option-chip active">출근 자동 저장</span>
+                <span class="option-chip active">미션 자동 저장</span>
+                <span class="option-chip active">퇴근 기록 리뷰</span>
+                <span class="option-chip">사진 기록 리뷰</span>
+                <span class="option-chip">문제 보고 리뷰</span>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="card hero">
+        <span class="pill">READY</span>
+        <h2>이대로 매장을 열까요?</h2>
+        <div class="summary-list">
+          <div class="summary-row"><span>매장 유형</span><b>일반 식당</b></div>
+          <div class="summary-row"><span>운영 방식</span><b id="missionSummary">자동 저장 중심</b></div>
+          <div class="summary-row"><span>역할/옵션</span><b id="detailSummary">홀 · 주방 · 리뷰 요청 · 멤버십 · 추천메뉴 · 업셀</b></div>
+          <div class="summary-row"><span>점수 체계</span><b>성과 포인트 · LEVO XP 완전 분리</b></div>
+          <div class="summary-row"><span>기록 리뷰</span><b>퇴근 · 사진 · 문제 보고만 리뷰</b></div>
+          <div class="summary-row"><span>초대</span><b>링크 · 초대 코드</b></div>
+        </div>
+        <div class="score-explainer">
+          <div class="score-explainer-card ops">
+            <strong>성과 포인트</strong>
+            <p>매장 성과, 팀 목표, 관리자 리포트에 쓰는 점수입니다. LEVO XP와 별도입니다.</p>
+          </div>
+          <div class="score-explainer-card xp">
+            <strong>LEVO XP</strong>
+            <p>직원 레벨, 하티 성장, 트로피에만 쓰는 개인 성장 점수입니다.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="icon" style="width:92px;height:92px;border-radius:28px;font-size:34px;background:var(--soft-gold)">🔗</div>
+          <div class="grow">
+            <h3>직원 초대 준비 완료</h3>
+            <p>매장 생성 후 바로 초대 링크와 카톡 문구를 만들 수 있어요.</p>
+          </div>
+        </div>
+        <button class="btn" onclick="show('invite')">매장 만들고 초대하기</button>
+        <button class="btn sub" onclick="show('owner')">세팅 다시 보기</button>
+      </div>
+    </section>
+
+    <section id="join" class="hidden">
+      <div class="card hero">
+        <span class="pill">JOIN STORE</span>
+        <h2>매장에 연결하기</h2>
+        <p>직원 계정은 그대로 두고, 초대받은 매장 소속만 새로 추가합니다.</p>
+        <div class="method active">
+          <div class="icon">🔗</div>
+          <div><h3>초대 링크</h3><p>카톡이나 문자로 받은 링크를 누르면 가장 빠릅니다.</p></div>
+        </div>
+        <div class="method">
+          <div class="icon">🔢</div>
+          <div><h3>초대 코드</h3><p>앱을 먼저 설치한 직원은 코드를 입력합니다.</p></div>
+        </div>
+        <label>초대 코드</label>
+        <input value="DOYA-8F2K" />
+        <button class="btn" onclick="show('confirm')">매장 확인하기</button>
+      </div>
+    </section>
+
+    <section id="confirm" class="hidden">
+      <div class="card">
+        <div class="row">
+          <img class="hati-sm" src="assets/hati/hati-happy-3.png" alt="HATI" />
+          <div>
+            <h2>도야짬뽕에 합류할까요?</h2>
+            <p>내 개인 계정에 도야짬뽕 소속이 추가됩니다.</p>
+          </div>
+        </div>
+        <div class="stack" style="margin-top:14px">
+          <div class="method active"><div class="check">✓</div><div><h3>초대 유효</h3><p>사장님이 발급한 초대입니다.</p></div></div>
+          <div class="method active"><div class="check">✓</div><div><h3>매장 시간대</h3><p>Asia/Seoul 기준으로 출근과 주간 목표를 계산합니다.</p></div></div>
+        </div>
+        <label>내 역할</label>
+        <select>
+          <option>홀 일반직원</option>
+          <option>주방 일반직원</option>
+          <option>마케터</option>
+          <option>매니저</option>
+        </select>
+        <button class="btn" onclick="show('joined')">합류하기</button>
+      </div>
+    </section>
+
+    <section id="joined" class="hidden">
+      <div class="card hero" style="text-align:center">
+        <img class="hati" style="width:140px;height:140px" src="assets/hati/hati-jumping-1.png" alt="HATI" />
+        <span class="pill">JOINED</span>
+        <h2>매장 연결 완료!</h2>
+        <p>이제 도야짬뽕 전용 미션, 팀 챌린지, 랭킹이 내 앱에 표시됩니다.</p>
+        <button class="btn" onclick="show('employeeHome')">직원 앱 시작하기</button>
+      </div>
+    </section>
+
+    <section id="employeeHome" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+
+        <section class="doya-home-hero">
+          <div class="doya-greeting">
+            <div class="grow">
+              <small>오늘도 LEVO와 함께!</small>
+              <h2>안녕하세요, 홍지원님!</h2>
+              <p>오늘도 멋진 하루 보내세요.</p>
+            </div>
+            <button class="doya-bell" type="button" aria-label="알림" onclick="show('employeeMy')">🔔</button>
+          </div>
+
+          <div class="doya-hero-main">
+            <div class="doya-level-card">
+              <div class="doya-level-ring"><div>Lv.15</div></div>
+              <h3>1,350 / 2,000 LEVO XP</h3>
+              <p>개인 성장용 · 다음 레벨까지 650 XP</p>
+              <div class="progress"><span style="width:67%"></span></div>
+            </div>
+            <img class="doya-hati-stage" src="assets/hati/hati-happy-2.png" alt="HATI" />
+          </div>
+
+          <div class="doya-stat-grid">
+            <div class="doya-stat"><span>연속 출근</span><strong>12일 🔥</strong></div>
+            <div class="doya-stat"><span>이번주 성과 포인트</span><strong>42점 🏆</strong></div>
+          </div>
+
+          <button class="doya-checkin-btn" type="button" onclick="show('employeeCheckin')">출근 체크하기</button>
+          <span class="doya-caption">오늘도 힘차게 시작해요! 💚</span>
+        </section>
+
+        <section class="doya-team-card">
+          <div class="doya-team-head">
+            <div>
+              <small>이번주 팀 챌린지</small>
+              <strong>고객 미소 챌린지 💚</strong>
+            </div>
+            <span class="doya-team-score">12 / 30</span>
+          </div>
+          <div class="doya-team-row"><span>⭐ 리뷰</span><strong>12 / 30</strong></div>
+          <div class="doya-team-row"><span>🔥 클레임</span><strong>0건</strong></div>
+          <div class="progress"><span style="width:40%"></span></div>
+          <p style="text-align:center;margin-top:10px">“조금만 더 힘내요!”</p>
+        </section>
+
+        <section class="doya-feed-card">
+          <h3>오늘의 성장 소식</h3>
+          <p>💚 홍지원 A님이 리뷰 미션을 완료했어요.</p>
+          <p>🔥 팀 클레임 ZERO가 유지되고 있어요.</p>
+        </section>
+
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button class="active" type="button" onclick="show('employeeHome')">홈</button>
+          <button type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="checkinDone" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="checkin-done-card">
+          <img class="hati" src="assets/hati/hati-jumping-1.png" alt="HATI" />
+          <div class="checkin-done-mark">✓</div>
+          <span class="pill">출근 체크</span>
+          <h2>출근 완료!</h2>
+          <p>좋은 하루의 시작이에요 💚</p>
+          <div class="doya-stat-grid">
+            <div class="doya-stat"><span>연속 출근</span><strong>12일 🔥</strong></div>
+            <div class="doya-stat"><span>오늘 보상</span><strong>+10 LEVO XP</strong></div>
+          </div>
+          <button class="doya-checkin-btn" type="button" onclick="show('employeeHome')">확인</button>
+        </div>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button class="active" type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="employeeCheckin" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="quest-page-header">
+          <img class="hati-sm" src="assets/hati/hati-idle-3.png" alt="HATI" />
+          <div class="grow">
+            <h2>모험 시작</h2>
+            <p>출근 체크를 누르면 오늘의 목표가 열려요.</p>
+          </div>
+        </div>
+        <section class="quest-section">
+          <div class="row">
+            <div class="grow">
+              <span class="pill">TODAY NOTICE</span>
+              <h3>오늘 공지사항</h3>
+              <p>출근 전에 오늘 집중할 포인트를 확인해요.</p>
+            </div>
+            <span class="chip">추천메뉴</span>
+          </div>
+        </section>
+        <section class="mood-check-card">
+          <div class="row">
+            <div class="grow">
+              <h3>오늘 기분은 어때요?</h3>
+              <p>출근 전 컨디션을 가볍게 남기면 하티가 맞춰서 응원해줘요.</p>
+            </div>
+          </div>
+          <div class="mood-options" aria-label="오늘 기분 선택">
+            <button type="button" data-mood-option="좋아요"><span>😊</span>좋아요</button>
+            <button type="button" data-mood-option="평온해요"><span>🙂</span>평온</button>
+            <button type="button" data-mood-option="조금 피곤해요"><span>😴</span>피곤</button>
+            <button type="button" data-mood-option="힘이 필요해요"><span>💚</span>응원</button>
+          </div>
+          <div id="moodFeedback" class="demo-feedback">오늘 컨디션을 선택해보세요.</div>
+        </section>
+        <section class="checkin-done-card">
+          <div class="checkin-done-mark">✓</div>
+          <span class="pill">출근 체크</span>
+          <h2>출근 준비!</h2>
+          <p>좋은 하루의 시작이에요 💚</p>
+          <div class="doya-stat-grid">
+            <div class="doya-stat"><span>연속 출근</span><strong>12일 🔥</strong></div>
+            <div class="doya-stat"><span>보상</span><strong>+10 LEVO XP</strong></div>
+          </div>
+          <button class="doya-checkin-btn" type="button" onclick="show('checkinDone')">출근 체크하기</button>
+        </section>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button class="active" type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="employeeCheckout" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="quest-page-header">
+          <img class="hati-sm" src="assets/hati/hati-sleepy-2.png" alt="HATI" />
+          <div class="grow">
+            <h2>마감 퀘스트</h2>
+            <p>퇴근 전 마지막 상태만 가볍게 남겨요.</p>
+          </div>
+        </div>
+        <section class="quest-section">
+          <div class="row">
+            <div class="grow">
+              <h3>퇴근 전 점검</h3>
+              <p>문제 보고가 아니라 마감 상태 확인이에요.</p>
+            </div>
+            <span class="chip">성과 포인트 +1</span>
+          </div>
+          <div class="checkout-checklist">
+            <label><input type="checkbox" checked /> 내 구역 마감 상태 이상 없음</label>
+            <label><input type="checkbox" checked /> 고객 응대/주문 누락 확인</label>
+            <label><input type="checkbox" /> 매니저에게 전달할 내용 있음</label>
+          </div>
+          <button id="checkoutSubmitButton" class="doya-checkin-btn" type="button" onclick="submitCheckoutPreview(this)">퇴근 제출하기</button>
+          <div id="checkoutFeedback" class="demo-feedback">퇴근 제출 완료! 이제 매니저 기록 리뷰만 기다리면 돼요.</div>
+          <p style="text-align:center;margin-top:10px">제출 후 매니저가 성과 포인트만 리뷰합니다. LEVO XP와는 별도예요.</p>
+        </section>
+        <section class="doya-team-card">
+          <div class="doya-team-head">
+            <div>
+              <small>오늘 상태</small>
+              <strong id="checkoutStatusTitle">마감 제출 대기</strong>
+            </div>
+            <span id="checkoutStatusScore" class="doya-team-score">0 / 1</span>
+          </div>
+          <div class="progress"><span id="checkoutStatusProgress" style="width:0%"></span></div>
+        </section>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button type="button" onclick="show('employeeCheckin')">출근</button>
+          <button class="active" type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="employeePerformance" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="quest-page-header">
+          <img class="hati-sm" src="assets/hati/hati-success-2.png" alt="HATI" />
+          <div class="grow">
+            <h2>성장 미션</h2>
+            <p>성과 미션은 성과 포인트만 기록됩니다. LEVO XP와는 상관없어요.</p>
+          </div>
+        </div>
+        <section class="quest-section">
+          <div class="mission-grid">
+            <div class="mission-tile"><span class="emoji">⭐</span><strong>리뷰 미션</strong><small>성과 포인트 +1 · 1회</small><button type="button" data-demo-complete>미션 완료</button></div>
+            <div class="mission-tile"><span class="emoji">💚</span><strong>멤버십 미션</strong><small>성과 포인트 +1 · 1회</small><button type="button" data-demo-complete>미션 완료</button></div>
+            <div class="mission-tile"><span class="emoji">🥤</span><strong>업셀 미션</strong><small>성과 포인트 +1 · 1회</small><button type="button" data-demo-complete>미션 완료</button></div>
+            <div class="mission-tile"><span class="emoji">🍜</span><strong>추천메뉴 미션</strong><small>성과 포인트 +1 · 1회</small><button type="button" data-demo-complete>미션 완료</button></div>
+          </div>
+          <div class="peer-praise-card">
+            <div class="row">
+              <span class="peer-praise-icon">💬</span>
+              <div class="grow">
+                <h3>동료 칭찬 보내기</h3>
+                <p>칭찬할 동료를 먼저 고르고, 좋았던 행동을 남겨주세요.</p>
+              </div>
+            </div>
+            <div class="praise-targets" aria-label="칭찬할 동료 선택">
+              <button class="is-complete" type="button" data-praise-target="홀직원 B"><img src="assets/hati/hati-happy-1.png" alt="" />홀직원 B</button>
+              <button type="button" data-praise-target="주방직원 B"><img src="assets/hati/hati-clean-2.png" alt="" />주방직원 B</button>
+              <button type="button" data-praise-target="마케터 C"><img src="assets/hati/hati-success-2.png" alt="" />마케터 C</button>
+            </div>
+            <div class="praise-options">
+              <button type="button" data-praise-option>친절했어요</button>
+              <button type="button" data-praise-option>바쁠 때 도와줬어요</button>
+              <button type="button" data-praise-option>마감이 깔끔했어요</button>
+              <button type="button" data-praise-option>분위기를 살렸어요</button>
+            </div>
+            <div id="praiseFeedback" class="demo-feedback">홀직원 B에게 칭찬을 보냈어요. 홈 피드와 칭찬왕 후보에 표시됩니다.</div>
+          </div>
+        </section>
+        <section class="doya-team-card">
+          <div class="doya-team-head">
+            <div>
+              <small>후보 상태</small>
+              <strong>리뷰왕 후보예요!</strong>
+            </div>
+            <span class="doya-team-score">3건</span>
+          </div>
+          <p style="margin-top:10px">조금만 더 힘내면 이번달 트로피에 가까워져요.</p>
+        </section>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button class="active" type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="employeeRanking" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="quest-page-header">
+          <img class="hati-sm" src="assets/hati/hati-levelup-2.png" alt="HATI" />
+          <div class="grow">
+            <h2>랭킹</h2>
+            <p>주간/월간 성장 기록을 한곳에서 봐요.</p>
+          </div>
+        </div>
+        <section class="quest-section">
+          <div class="ranking-tabs">
+            <button class="active" type="button" data-ranking-period="weekly">주간</button>
+            <button type="button" data-ranking-period="monthly">월간</button>
+          </div>
+          <div id="weeklyRankingList" class="ranking-list">
+            <div class="ranking-row"><span class="rank">1</span><img src="assets/hati/hati-happy-2.png" alt="" /><div><b>홍직원 A</b><small>이번주 성과 포인트</small></div><strong>42점</strong></div>
+            <div class="ranking-row"><span class="rank">2</span><img src="assets/hati/hati-idle-3.png" alt="" /><div><b>주방직원 B</b><small>이번주 성과 포인트</small></div><strong>30점</strong></div>
+            <div class="ranking-row"><span class="rank">3</span><img src="assets/hati/hati-success-1.png" alt="" /><div><b>새 직원 8</b><small>이번주 성과 포인트</small></div><strong>20점</strong></div>
+          </div>
+          <div id="monthlyRankingList" class="ranking-list hidden">
+            <div class="ranking-row"><span class="rank">1</span><img src="assets/hati/hati-success-3.png" alt="" /><div><b>홍직원 A</b><small>이번달 성과 포인트</small></div><strong>180점</strong></div>
+            <div class="ranking-row"><span class="rank">2</span><img src="assets/hati/hati-happy-1.png" alt="" /><div><b>홀직원 B</b><small>이번달 성과 포인트</small></div><strong>150점</strong></div>
+            <div class="ranking-row"><span class="rank">3</span><img src="assets/hati/hati-clean-2.png" alt="" /><div><b>주방직원 B</b><small>이번달 성과 포인트</small></div><strong>130점</strong></div>
+          </div>
+        </section>
+        <section class="quest-section">
+          <h3>성과왕 카테고리</h3>
+          <div class="mission-grid">
+            <div class="mission-tile"><span class="emoji">⭐</span><strong>리뷰왕</strong><small>리뷰 + 멤버십</small></div>
+            <div class="mission-tile"><span class="emoji">⚡</span><strong>업셀왕</strong><small>추천 성공 수</small></div>
+            <div class="mission-tile"><span class="emoji">💬</span><strong>칭찬왕</strong><small>동료 칭찬</small></div>
+            <div class="mission-tile"><span class="emoji">🧹</span><strong>청소왕</strong><small>주방 특수 청소</small></div>
+          </div>
+        </section>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button class="active" type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="employeeMy" class="hidden">
+      <div class="employee-preview">
+        <div class="phone-status">
+          <span>Levelove</span>
+          <strong>Lv. 15</strong>
+        </div>
+        <div class="quest-page-header">
+          <img class="hati-sm" src="assets/hati/hati-idle-1.png" alt="HATI" />
+          <div class="grow">
+            <h2>마이</h2>
+            <p>프로필, 언어, 성장 기록을 관리해요.</p>
+          </div>
+          <button class="doya-bell" type="button" aria-label="설정" onclick="toggleProfileSettings()">⚙️</button>
+        </div>
+        <section class="quest-section">
+          <div class="profile-card">
+            <img id="profilePreviewAvatar" class="profile-avatar" src="assets/hati/hati-happy-3.png" alt="프로필" />
+            <div>
+              <small style="color:var(--blue);font-weight:950">마이 프로필</small>
+              <h2>홍직원 A</h2>
+              <p>홀 일반직원 · 도야짬뽕</p>
+            </div>
+          </div>
+          <div class="profile-stats">
+            <div class="doya-stat"><span>레벨</span><strong>Lv.15</strong></div>
+            <div class="doya-stat"><span>LEVO XP</span><strong>1,350</strong></div>
+            <div class="doya-stat"><span>성과 포인트</span><strong>42점</strong></div>
+          </div>
+          <div class="score-explainer">
+            <div class="score-explainer-card xp">
+              <strong>LEVO XP</strong>
+              <p>내 레벨과 하티 성장에만 쓰는 개인 성장 점수예요.</p>
+            </div>
+            <div class="score-explainer-card ops">
+              <strong>성과 포인트</strong>
+              <p>매장 성과, 랭킹, 매니저 리포트에 쓰는 점수예요. LEVO XP와 별도예요.</p>
+            </div>
+          </div>
+          <div id="profileSettingsPanel" class="profile-settings-panel">
+            <div class="settings-row">
+              <div><strong>프로필 사진</strong><small>내 사진을 선택하면 바로 프로필에 반영돼요.</small></div>
+              <button class="small-action" type="button" onclick="document.getElementById('profilePhotoInput').click()">사진 선택</button>
+              <input id="profilePhotoInput" class="profile-upload-input" type="file" accept="image/*" />
+            </div>
+            <div class="settings-row">
+              <div><strong>언어 설정</strong><small>직원이 직접 한국어/베트남어를 선택합니다.</small></div>
+              <select id="previewLangSelect" style="min-height:42px;width:128px">
+                <option>한국어</option>
+                <option>Tiếng Việt</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <div><strong>알림</strong><small>미션/칭찬/승인 알림을 받습니다.</small></div>
+              <button class="small-action" type="button" data-demo-complete>켜짐</button>
+            </div>
+          </div>
+        </section>
+        <section class="quest-section">
+          <h3>출석표</h3>
+          <p>이번달 출근한 날을 한눈에 확인해요.</p>
+          <div class="attendance-calendar" aria-label="이번달 출석 캘린더">
+            <div class="calendar-head">
+              <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span>
+            </div>
+            <div class="calendar-grid">
+              <span class="calendar-day empty"></span>
+              <span class="calendar-day empty"></span>
+              <span class="calendar-day empty"></span>
+              <span class="calendar-day">1</span>
+              <span class="calendar-day present">2</span>
+              <span class="calendar-day present">3</span>
+              <span class="calendar-day">4</span>
+              <span class="calendar-day present">5</span>
+              <span class="calendar-day present">6</span>
+              <span class="calendar-day present">7</span>
+              <span class="calendar-day">8</span>
+              <span class="calendar-day present">9</span>
+              <span class="calendar-day present">10</span>
+              <span class="calendar-day">11</span>
+              <span class="calendar-day present">12</span>
+              <span class="calendar-day present">13</span>
+              <span class="calendar-day">14</span>
+              <span class="calendar-day present">15</span>
+              <span class="calendar-day present">16</span>
+              <span class="calendar-day present">17</span>
+              <span class="calendar-day">18</span>
+              <span class="calendar-day present">19</span>
+              <span class="calendar-day present">20</span>
+              <span class="calendar-day present">21</span>
+              <span class="calendar-day present">22</span>
+              <span class="calendar-day present">23</span>
+              <span class="calendar-day today">24</span>
+              <span class="calendar-day">25</span>
+              <span class="calendar-day">26</span>
+              <span class="calendar-day">27</span>
+              <span class="calendar-day">28</span>
+              <span class="calendar-day">29</span>
+              <span class="calendar-day">30</span>
+              <span class="calendar-day">31</span>
+            </div>
+          </div>
+          <div class="doya-stat-grid" style="margin-top:10px">
+            <div class="doya-stat"><span>이번달 출석</span><strong>16일</strong></div>
+            <div class="doya-stat"><span>이번주 출석</span><strong>4 / 7</strong></div>
+          </div>
+        </section>
+        <section class="quest-section">
+          <h3>전시 대기 트로피</h3>
+          <div class="trophy-shelf">
+            <div class="trophy"><span>⭐</span>5월 리뷰왕</div>
+            <div class="trophy"><span>🧹</span>5월 청소왕</div>
+            <div class="trophy"><span>💬</span>칭찬왕 후보</div>
+          </div>
+        </section>
+        <nav class="doya-tabbar" aria-label="직원 앱 메뉴">
+          <button type="button" onclick="show('employeeHome')">홈</button>
+          <button type="button" onclick="show('employeeCheckin')">출근</button>
+          <button type="button" onclick="show('employeeCheckout')">퇴근</button>
+          <button type="button" onclick="show('employeePerformance')">성과</button>
+          <button type="button" onclick="show('employeeRanking')">랭킹</button>
+          <button class="active" type="button" onclick="show('employeeMy')">마이</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="invite" class="hidden">
+      <div class="card hero">
+        <div class="row">
+          <img class="hati-sm" src="assets/hati/hati-success-3.png" alt="HATI" />
+          <div class="grow">
+            <span class="pill">STORE READY</span>
+            <h2>매장 생성 완료!<br>이제 직원을 초대하세요</h2>
+            <p>직원은 링크나 초대 코드로 들어오고, 사장님은 합류한 직원에게 역할만 지정하면 됩니다.</p>
+          </div>
+        </div>
+
+        <div class="invite-panel">
+          <div class="invite-link-card">
+            <div class="row">
+              <div class="grow">
+                <h3>초대 링크</h3>
+                <p>카톡이나 문자에 붙여넣으면 직원이 바로 매장에 연결됩니다.</p>
+              </div>
+              <span class="chip">추천</span>
+            </div>
+            <code>https://levelove.app/join/DOYA-8F2K</code>
+            <div class="invite-actions">
+              <button class="btn" data-copy-text="https://levelove.app/join/DOYA-8F2K" onclick="copyInvite(this)">링크 복사</button>
+              <button class="btn sub" data-copy-text="LEVELOVE 초대가 도착했어요. 링크를 눌러 매장에 합류해주세요: https://levelove.app/join/DOYA-8F2K" onclick="copyInvite(this)">카톡 문구 복사</button>
+            </div>
+          </div>
+
+          <div class="quick-summary">
+            <div class="mini">초대 코드<strong>DOYA-8F2K</strong></div>
+            <div class="mini">기본 역할<strong>합류 후 선택</strong></div>
+            <div class="mini">언어<strong>직원이 직접 설정</strong></div>
+          </div>
+
+          <div class="role-invite-grid">
+            <div class="role-invite"><b>홀 직원</b><span>리뷰 · 멤버십 · 추천메뉴 · 업셀</span></div>
+            <div class="role-invite"><b>주방 직원</b><span>청소 · 위생 · 마감 체크</span></div>
+            <div class="role-invite"><b>마케팅</b><span>콘텐츠 · 영상 · 기획 · 보고</span></div>
+            <div class="role-invite"><b>매니저</b><span>퇴근 기록 리뷰 · 직원 관리</span></div>
+          </div>
+
+          <div class="invite-note">
+            직원이 들어오면 관리자 홈의 직원 소속 목록에 표시됩니다. 퇴사 직원은 소속만 해제하고 개인 계정은 유지됩니다.
+          </div>
+        </div>
+
+        <div class="preview-actions">
+          <button class="btn" onclick="show('employeeHome')">직원 화면 보기</button>
+          <button class="btn sub" onclick="show('approval')">관리자 승인페이지 보기</button>
+        </div>
+        <button class="btn" onclick="show('admin')">관리 홈 미리보기</button>
+        <button class="btn sub" onclick="show('owner')">매장 설정 다시 보기</button>
+      </div>
+    </section>
+
+    <section id="approval" class="hidden">
+      <div class="card hero">
+        <div class="row">
+          <img class="hati-sm" src="assets/hati/hati-success-1.png" alt="HATI" />
+          <div class="grow">
+            <span class="pill">MANAGER REVIEW</span>
+            <h2>오늘 기록 리뷰</h2>
+            <p>직원들이 제출한 퇴근 기록과 사진/문제 보고만 가볍게 확인합니다. 출근과 일반 미션은 자동 저장됩니다.</p>
+          </div>
+          <span class="chip">대기 3건</span>
+        </div>
+
+        <div class="approval-list">
+          <div class="approval-card">
+            <div class="topline">
+              <div>
+                <h3>홍직원 A · 퇴근 제출</h3>
+                <p>홀 직원 · 오늘 미션 3개 완료</p>
+              </div>
+              <span class="reward">성과 +3점</span>
+            </div>
+            <div class="score-badges">
+              <span class="score-badge ops">성과 포인트 +3</span>
+              <span class="score-badge xp">LEVO XP 변동 없음</span>
+            </div>
+            <div class="approval-detail">
+              출근 10:02 · 퇴근 20:51<br>
+              리뷰 요청 1회 · 멤버십 1회 · 추천메뉴 1회<br>
+              직원 메모: 오늘 피크타임 응대 완료
+            </div>
+            <div class="approval-actions">
+              <button class="btn" data-approval-action="approve">기록 승인</button>
+              <button class="btn sub" data-approval-action="request">다시 요청</button>
+            </div>
+            <div class="approval-result" aria-live="polite"></div>
+          </div>
+
+          <div class="approval-card">
+            <div class="topline">
+              <div>
+                <h3>주방직원 B · 마감 체크</h3>
+                <p>주방 직원 · 청소/마감 기록</p>
+              </div>
+              <span class="reward">성과 +2점</span>
+            </div>
+            <div class="score-badges">
+              <span class="score-badge ops">성과 포인트 +2</span>
+              <span class="score-badge xp">LEVO XP 변동 없음</span>
+            </div>
+            <div class="approval-detail">
+              싱크대 하부 청소 · 냉장고 손잡이 체크<br>
+              사진 기록 1장 첨부됨<br>
+              매니저는 사진과 메모만 확인하면 됩니다.
+            </div>
+            <div class="approval-actions">
+              <button class="btn" data-approval-action="approve">기록 승인</button>
+              <button class="btn sub" data-approval-action="request">다시 요청</button>
+            </div>
+            <div class="approval-result" aria-live="polite"></div>
+          </div>
+
+          <div class="approval-card">
+            <div class="topline">
+              <div>
+                <h3>마케터 C · 콘텐츠 보고</h3>
+                <p>마케팅 · 게시물 업로드 기록</p>
+              </div>
+              <span class="reward">성과 +1점</span>
+            </div>
+            <div class="score-badges">
+              <span class="score-badge ops">성과 포인트 +1</span>
+              <span class="score-badge xp">LEVO XP 변동 없음</span>
+            </div>
+            <div class="approval-detail">
+              숏폼 촬영 완료 · 게시물 업로드 예정<br>
+              링크 또는 캡처가 필요한 경우 다시 요청할 수 있습니다.
+            </div>
+            <div class="approval-actions">
+              <button class="btn" data-approval-action="approve">기록 승인</button>
+              <button class="btn sub" data-approval-action="request">다시 요청</button>
+            </div>
+            <div class="approval-result" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <button class="btn sub" onclick="show('invite')">초대 완료 화면으로</button>
+      </div>
+    </section>
+
+    <section id="admin" class="hidden">
+      <div class="card hero">
+        <span class="pill">STORE HQ</span>
+        <h2>관리 홈</h2>
+        <p>사장님과 매니저가 오늘 확인할 일만 먼저 보이게 정리했습니다. 직원 성장 화면과 관리 화면은 완전히 분리됩니다.</p>
+      </div>
+      <div class="metric">
+        <div class="mini">오늘 할 일<strong>3건</strong></div>
+        <div class="mini">주간 리뷰<strong>12/30</strong></div>
+        <div class="mini">클레임<strong>0건</strong></div>
+        <div class="mini">직원 소속<strong>8명</strong></div>
+      </div>
+      <div class="admin-command-grid">
+        <button class="admin-command primary" type="button" onclick="show('approval')">
+          <span>✓</span>
+          <strong>오늘 기록 리뷰</strong>
+          <p>퇴근 제출과 사진/문제 보고만 빠르게 승인하거나 다시 요청합니다.</p>
+        </button>
+        <button class="admin-command" type="button" onclick="show('employeeRanking')">
+          <span>🏆</span>
+          <strong>성과 포인트 보기</strong>
+          <p>랭킹은 매장 성과 포인트만 보여주고 LEVO XP와 섞지 않습니다.</p>
+        </button>
+        <button class="admin-command" type="button" onclick="show('employeeHome')">
+          <span>📱</span>
+          <strong>직원 앱 미리보기</strong>
+          <p>직원이 실제로 보는 출근, 성과, 퇴근, 마이 화면을 확인합니다.</p>
+        </button>
+        <button class="admin-command" type="button" onclick="show('owner')">
+          <span>⚙</span>
+          <strong>매장 세팅 수정</strong>
+          <p>역할, 미션, 자동 저장/리뷰 방식을 언제든 다시 조정합니다.</p>
+        </button>
+      </div>
+      <button class="btn" onclick="show('invite')">초대 화면 다시 보기</button>
+      <button class="btn sub" onclick="show('start')">처음으로</button>
+    </section>
+  </main>
+
+  <script>
+    const sections = [
+      "start",
+      "account",
+      "profile",
+      "role",
+      "owner",
+      "join",
+      "confirm",
+      "joined",
+      "employeeHome",
+      "checkinDone",
+      "employeeCheckin",
+      "employeeCheckout",
+      "employeePerformance",
+      "employeeRanking",
+      "employeeMy",
+      "invite",
+      "approval",
+      "admin"
+    ];
+
+    function show(id) {
+      sections.forEach((section) => {
+        document.getElementById(section).classList.toggle("hidden", section !== id);
+      });
+      scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function copyInvite(button) {
+      const text = button.dataset.copyText || "";
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (error) {
+        console.info("Preview copy fallback", text);
+      }
+      const before = button.textContent;
+      button.textContent = "복사 완료";
+      setTimeout(() => {
+        button.textContent = before;
+      }, 1200);
+    }
+
+    function showDemoFeedback(target, message) {
+      let feedback = target.closest("section, .peer-praise-card, .quest-section")?.querySelector(".demo-feedback");
+      if (!feedback) {
+        feedback = document.createElement("div");
+        feedback.className = "demo-feedback";
+        target.closest(".quest-section, .peer-praise-card, .mission-tile")?.appendChild(feedback);
+      }
+      feedback.textContent = message;
+      feedback.classList.add("is-visible");
+    }
+
+    function toggleProfileSettings() {
+      document.getElementById("profileSettingsPanel")?.classList.toggle("is-visible");
+    }
+
+    function changePreviewAvatar() {
+      const avatar = document.getElementById("profilePreviewAvatar");
+      if (!avatar) return;
+      const current = avatar.getAttribute("src") || "";
+      avatar.setAttribute("src", current.includes("hati-happy-3")
+        ? "assets/hati/hati-success-1.png"
+        : "assets/hati/hati-happy-3.png");
+      const panel = document.getElementById("profileSettingsPanel");
+      if (panel) showDemoFeedback(panel, "프로필 사진 미리보기가 변경됐어요.");
+    }
+
+    document.getElementById("profilePhotoInput")?.addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      const avatar = document.getElementById("profilePreviewAvatar");
+      const panel = document.getElementById("profileSettingsPanel");
+      if (!file || !avatar) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        avatar.src = reader.result;
+        if (panel) showDemoFeedback(panel, "내 사진이 프로필에 적용됐어요.");
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.querySelectorAll("[data-mood-option]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-mood-option]").forEach((option) => option.classList.remove("is-complete"));
+        button.classList.add("is-complete");
+        const feedback = document.getElementById("moodFeedback");
+        if (feedback) {
+          feedback.textContent = `오늘 기분: ${button.dataset.moodOption}. 하티가 맞춰서 응원할게요.`;
+          feedback.classList.add("is-visible");
+        }
+      });
+    });
+
+    function submitCheckoutPreview(button) {
+      const feedback = document.getElementById("checkoutFeedback");
+      const title = document.getElementById("checkoutStatusTitle");
+      const score = document.getElementById("checkoutStatusScore");
+      const progress = document.getElementById("checkoutStatusProgress");
+      button.textContent = "제출 완료 ✓";
+      button.classList.add("is-complete");
+      button.disabled = true;
+      if (feedback) feedback.classList.add("is-visible");
+      if (title) title.textContent = "매니저 리뷰 대기";
+      if (score) score.textContent = "1 / 1";
+      if (progress) progress.style.width = "100%";
+    }
+
+    function updateApprovalState(button) {
+      const card = button.closest(".approval-card");
+      const result = card?.querySelector(".approval-result");
+      if (!card || !result) return;
+      const isApprove = button.dataset.approvalAction === "approve";
+      card.classList.toggle("is-approved", isApprove);
+      card.classList.toggle("is-rejected", !isApprove);
+      result.textContent = isApprove
+        ? "승인 완료. 이 기록은 매장 성과 포인트에 반영됩니다."
+        : "다시 요청을 보냈어요. 직원은 같은 날 기록을 보완해서 다시 제출할 수 있습니다.";
+      result.classList.add("is-visible");
+      card.querySelectorAll("[data-approval-action]").forEach((actionButton) => {
+        actionButton.classList.toggle("is-complete", actionButton === button);
+      });
+    }
+
+    document.querySelectorAll("[data-approval-action]").forEach((button) => {
+      button.addEventListener("click", () => updateApprovalState(button));
+    });
+
+    document.querySelectorAll("[data-ranking-period]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const period = button.dataset.rankingPeriod;
+        document.querySelectorAll("[data-ranking-period]").forEach((tab) => {
+          tab.classList.toggle("active", tab === button);
+        });
+        document.getElementById("weeklyRankingList")?.classList.toggle("hidden", period !== "weekly");
+        document.getElementById("monthlyRankingList")?.classList.toggle("hidden", period !== "monthly");
+      });
+    });
+
+    document.querySelectorAll("[data-demo-complete]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tile = button.closest(".mission-tile");
+        if (tile) tile.classList.add("is-complete");
+        button.classList.add("is-complete");
+        button.textContent = button.textContent.includes("완료") ? "완료됨 ✓" : "저장됨 ✓";
+        showDemoFeedback(button, "저장됐어요. 성과 포인트만 반영되고 LEVO XP는 변하지 않습니다.");
+      });
+    });
+
+    document.querySelectorAll("[data-praise-option]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-praise-option]").forEach((option) => option.classList.remove("is-complete"));
+        button.classList.add("is-complete");
+        const target = document.querySelector("[data-praise-target].is-complete")?.dataset.praiseTarget || "동료";
+        const feedback = document.getElementById("praiseFeedback");
+        if (feedback) {
+          feedback.textContent = `${target}에게 "${button.textContent.trim()}" 칭찬을 보냈어요. 홈 피드와 칭찬왕 후보에 표시됩니다.`;
+          feedback.classList.add("is-visible");
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-praise-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-praise-target]").forEach((target) => target.classList.remove("is-complete"));
+        button.classList.add("is-complete");
+        const feedback = document.getElementById("praiseFeedback");
+        if (feedback) {
+          feedback.textContent = `${button.dataset.praiseTarget}님을 칭찬 대상으로 선택했어요.`;
+          feedback.classList.add("is-visible");
+        }
+      });
+    });
+
+    function refreshMissionSummary() {
+      const summary = document.getElementById("missionSummary");
+      if (!summary) return;
+      summary.textContent = "자동 저장 중심";
+    }
+
+    function refreshDetailSummary() {
+      const setupChoices = [...document.querySelectorAll(".setup-choice-chip.active")]
+        .map((chip) => chip.textContent.trim());
+      const advancedOptions = [...document.querySelectorAll(".advanced-settings .option-chip.active")]
+        .map((chip) => chip.textContent.trim());
+      const summary = document.getElementById("detailSummary");
+      if (!summary) return;
+      const uniqueOptions = [...new Set([...setupChoices, ...advancedOptions])];
+      summary.textContent = uniqueOptions.length ? uniqueOptions.join(" · ") : "선택 없음";
+    }
+
+    document.querySelectorAll(".option-chip").forEach((chip) => {
+      chip.setAttribute("role", "button");
+      chip.setAttribute("tabindex", "0");
+      chip.addEventListener("click", (event) => {
+        event.stopPropagation();
+        chip.classList.toggle("active");
+        refreshDetailSummary();
+      });
+      chip.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.stopPropagation();
+          chip.click();
+        }
+      });
+    });
+
+    refreshMissionSummary();
+    refreshDetailSummary();
+  </script>
+</body>
+</html>

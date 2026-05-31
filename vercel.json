@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/staff.html",
+      "status": 308,
+      "headers": {
+        "Location": "/levelove-staff-9c4f2a7.html"
+      }
+    },
+    {
+      "src": "/store-settings.html",
+      "status": 308,
+      "headers": {
+        "Location": "/levelove-store-9c4f2a7.html"
+      }
+    },
+    {
+      "src": "/kitchen.html",
+      "status": 308,
+      "headers": {
+        "Location": "/levelove-admin-9c4f2a7.html#team"
+      }
+    },
+    {
+      "src": "/bonus-settings.html",
+      "status": 308,
+      "headers": {
+        "Location": "/levelove-admin-9c4f2a7.html#logs"
+      }
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
+  ]
+}
