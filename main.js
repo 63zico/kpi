@@ -1851,12 +1851,23 @@ function renderPersonalLog(month) {
 }
 
 function renderTeamLog(month) {
+  const weeklyChallenge = currentWeekTeamChallenge();
   const rows = monthEntries(state.teamEntries, month).slice(-15).reverse();
-  if (!rows.length) {
+  if (!weeklyChallenge && !rows.length) {
     els.teamLogTable.innerHTML = `<tr><td colspan="6">기록 없음</td></tr>`;
     return;
   }
-  els.teamLogTable.innerHTML = rows.map((entry) => `
+  const weeklyRow = weeklyChallenge ? `
+    <tr class="team-log-summary-row">
+      <td>이번주</td>
+      <td>자동 합산</td>
+      <td>${Number(weeklyChallenge.reviewCount || 0)} / ${Number(weeklyChallenge.reviewTarget || normalizeTeamChallengeSettings(state.storeSettings?.teamChallengeSettings).primaryTarget)}</td>
+      <td>${teamClaimCount(weeklyChallenge)}건</td>
+      <td>${escapeHtml(teamChallengeMemo(weeklyChallenge))}</td>
+      <td>요약</td>
+    </tr>
+  ` : "";
+  const manualRows = rows.map((entry) => `
     <tr>
       <td>${entry.date}</td>
       <td>${entry.team === "store" ? "전체 팀" : entry.team === "hall" ? "홀" : "주방"}</td>
@@ -1866,6 +1877,7 @@ function renderTeamLog(month) {
       <td><button class="btn danger mini-btn" type="button" data-delete-team="${entry.id}">삭제</button></td>
     </tr>
   `).join("");
+  els.teamLogTable.innerHTML = `${weeklyRow}${manualRows}`;
 }
 
 function deletePersonalEntry(event) {

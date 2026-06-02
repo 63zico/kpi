@@ -12901,4 +12901,13 @@ td {
     scroll-margin-bottom: 110px;
   }
 }
+.team-log-summary-row {
+  background: #f1fff0;
+  color: #06244a;
+  font-weight: 800;
+}
 
+.team-log-summary-row td {
+  border-top: 1px solid #9fed83;
+  border-bottom: 1px solid #9fed83;
+}
