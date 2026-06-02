@@ -106,7 +106,7 @@ const defaultStoreSettings = {
   industry: "restaurant",
   template: "korean-restaurant",
   defaultLanguage: "ko",
-  rankingVisibility: "top3",
+  rankingVisibility: "private",
   bonusEnabled: false,
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
@@ -367,7 +367,7 @@ function loadState() {
 }
 
 function setStoreSettingsTab(tab) {
-  const nextTab = ["basic", "performance", "ranking"].includes(tab) ? tab : "basic";
+  const nextTab = ["basic", "performance"].includes(tab) ? tab : "basic";
   storeSettingsTabButtons.forEach((button) => {
     const isActive = button.dataset.storeSettingsTab === nextTab;
     button.classList.toggle("is-active", isActive);
@@ -475,7 +475,7 @@ function updateSyncStatus(saveText = "준비 중") {
   const storageScope = storeId && storeId !== "main" ? "로그인 매장" : "기본 저장소";
   if (fields.syncStorageScope) fields.syncStorageScope.textContent = storageScope;
   if (fields.syncSaveState) fields.syncSaveState.textContent = saveText;
-  if (fields.syncAppVersion) fields.syncAppVersion.textContent = "20260529-role-flow-1";
+  if (fields.syncAppVersion) fields.syncAppVersion.textContent = "20260603-core-reduction-1";
   renderLaunchChecklist();
 }
 
@@ -483,7 +483,6 @@ function renderLaunchChecklist() {
   if (!fields.launchChecklist) return;
   const activeStaff = activeLaunchStaff();
   const performanceCount = enabledPerformanceCount();
-  const rankingCount = enabledRankingCount();
   const submittedCount = (state.selfChecks || []).length + (state.personalEntries || []).length;
   const storeId = window.LeveloveAuth?.activeStoreId?.() || "main";
   const items = [
@@ -506,11 +505,6 @@ function renderLaunchChecklist() {
       title: "성과 미션",
       detail: performanceCount ? `${performanceCount}개 켜짐` : "역할별 성과를 1개 이상 켜기",
       done: performanceCount > 0,
-    },
-    {
-      title: "랭킹 표시",
-      detail: settings.rankingVisibility === "private" ? "직원 화면에서 숨김" : `${rankingCount}개 랭킹 표시`,
-      done: settings.rankingVisibility === "private" || rankingCount > 0,
     },
     {
       title: "테스트 제출",
@@ -599,7 +593,7 @@ function renderSettings() {
   fields.storeName.value = settings.storeName || "";
   fields.industry.value = settings.industry || "restaurant";
   fields.defaultLanguage.value = settings.defaultLanguage || "ko";
-  fields.rankingVisibility.value = settings.rankingVisibility || "top3";
+  fields.rankingVisibility.value = "private";
   if (fields.bonusEnabled) {
     fields.bonusEnabled.value = String(settings.bonusEnabled === true);
   }
@@ -617,7 +611,7 @@ function readSettings() {
     industry: fields.industry.value,
     template: templateForIndustry(fields.industry.value),
     defaultLanguage: fields.defaultLanguage.value,
-    rankingVisibility: fields.rankingVisibility.value,
+    rankingVisibility: "private",
     bonusEnabled: false,
     operationPoints: fields.operationPoints
       ? parseOperationPoints(fields.operationPoints.value)

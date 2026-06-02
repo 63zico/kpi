@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260531-short-staff-link-1";
+const employeeAppVersion = "20260603-core-reduction-1";
 
 function appStorageKey() {
   return window.LeveloveAuth?.stateStorageKey?.(storageKey) || storageKey;

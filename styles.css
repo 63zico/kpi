@@ -12911,3 +12911,76 @@ td {
   border-top: 1px solid #9fed83;
   border-bottom: 1px solid #9fed83;
 }
+
+/* Launch core reduction: manager-first daily approval product. */
+.admin-app-body .top-actions a[href*="employee-check"],
+.admin-app-body .top-actions a[href="#performanceRankingPanel"],
+.admin-app-body #exportBtn,
+.admin-app-body .summary-grid,
+.admin-app-body .admin-workspace-tab[data-admin-view="ranking"],
+.admin-app-body .admin-workspace-tab[data-admin-view="team"],
+.admin-app-body [data-admin-section="ranking"],
+.admin-app-body [data-admin-section="team"],
+.admin-app-body .admin-test-tools {
+  display: none !important;
+}
+
+.admin-app-body .panel.admin-workspace-nav {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.admin-app-body[data-admin-view="logs"] .admin-test-tools {
+  display: none !important;
+}
+
+.store-settings-tabs button[data-store-settings-tab="ranking"],
+.store-settings-panel[data-store-settings-panel="ranking"],
+.ranking-settings-fieldset,
+.store-app-body .top-actions a[href*="employee-check"],
+.settings-form label:has(#rankingVisibility),
+.role-flow-panel,
+.store-sync-status,
+.launch-checklist-actions a[href*="employee-check"],
+.launch-checklist-actions a[href*="levelove-admin"] {
+  display: none !important;
+}
+
+.employee-app-body [data-employee-tab="ranking"],
+.employee-app-body .employee-wide-card[data-focus-tab="ranking"],
+.employee-app-body .employee-ranking-combo,
+.employee-app-body .employee-performance-rankings,
+.employee-app-body .ranking-candidate-card,
+.employee-app-body .home-team-quest,
+.employee-app-body .home-team-challenge,
+.employee-app-body .home-trophy-dock,
+.employee-app-body .trophy-strip,
+.employee-app-body .achievement-trophy-grid,
+.employee-app-body .home-hero-stats button[data-jump-tab="ranking"] {
+  display: none !important;
+}
+
+.employee-app-body .xp-burst,
+.employee-app-body #questLevel,
+.employee-app-body .home-hero-kicker,
+.employee-app-body .home-hero-card,
+.employee-app-body .home-hero-footer,
+.employee-app-body .check-tile em,
+.employee-app-body .home-quest-reward {
+  display: none !important;
+}
+
+.employee-app-body .home-hero-dashboard {
+  gap: 12px;
+}
+
+@media (max-width: 860px) {
+  .admin-app-body .panel.admin-workspace-nav {
+    grid-template-columns: repeat(4, minmax(132px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-app-body .panel.admin-workspace-nav {
+    grid-template-columns: repeat(4, minmax(136px, 136px)) !important;
+  }
+}

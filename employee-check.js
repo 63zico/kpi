@@ -109,7 +109,7 @@ const defaultStaff = [
 const defaultStoreSettings = {
   storeName: "우리 매장",
   defaultLanguage: "ko",
-  rankingVisibility: "top3",
+  rankingVisibility: "private",
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
   dailyOperationDate: "",
@@ -2800,7 +2800,7 @@ function renderRankings() {
 }
 
 function setEmployeeTab(tab, options = {}) {
-  const selectedTab = ["home", "checkin", "mission", "performance", "ranking", "my"].includes(tab) ? tab : "home";
+  const selectedTab = ["home", "checkin", "mission", "performance", "my"].includes(tab) ? tab : "home";
   document.body.dataset.employeeTab = selectedTab;
   els.employeePhone?.setAttribute("data-active-tab", selectedTab);
   if (els.employeePhone) {
@@ -5811,4 +5811,3 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-

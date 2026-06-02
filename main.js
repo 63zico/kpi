@@ -57,7 +57,7 @@ const defaultStoreSettings = {
   industry: "restaurant",
   template: "korean-restaurant",
   defaultLanguage: "ko",
-  rankingVisibility: "top3",
+  rankingVisibility: "private",
   bonusEnabled: false,
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
@@ -290,12 +290,12 @@ function adminViewFromHash(hash) {
     logPanel: "logs",
     teamForm: "team",
   };
-  if (["today", "approval", "ranking", "team", "ops", "logs"].includes(value)) return value;
+  if (["today", "approval", "ops", "logs"].includes(value)) return value;
   return viewMap[value] || "";
 }
 
 function setAdminView(view, options = {}) {
-  const nextView = ["today", "approval", "ranking", "team", "ops", "logs"].includes(view) ? view : "today";
+  const nextView = ["today", "approval", "ops", "logs"].includes(view) ? view : "today";
   activeAdminView = nextView;
   document.body.dataset.adminView = nextView;
   els.adminViewButtons.forEach((button) => {
@@ -649,7 +649,6 @@ function render() {
   const month = els.referenceMonth.value || toMonthInput(new Date());
   const storeSettings = normalizeStoreSettings(state.storeSettings);
   const personalRows = buildPersonalRows(month);
-  const rankingRows = personalRows.filter((row) => !isManagerRole(row.role));
   const hallTeamAverage = 0;
   const kitchenTeamAverage = 0;
   const bonusRows = personalRows.map((row) => buildBonusRow(row, hallTeamAverage, kitchenTeamAverage));
@@ -674,12 +673,8 @@ function render() {
 
   renderAdminWorkspaceSummary(month, hallTeamAverage, kitchenTeamAverage);
   renderSelfCheckQueue();
-  renderWeeklyRanking(buildWeeklyRows());
-  renderPerformanceRankings(month);
-  renderCharacterRanking(rankingRows.map((row) => buildBonusRow(row, hallTeamAverage, kitchenTeamAverage)));
   renderPersonalLog(month);
   renderTeamLog(month);
-  renderTestTools();
 }
 
 function renderTodayChecklist(storeSettings = normalizeStoreSettings(state.storeSettings)) {
@@ -2298,7 +2293,6 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
-
 
 
 
