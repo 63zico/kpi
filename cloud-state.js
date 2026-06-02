@@ -1,5 +1,14 @@
 const cloudStateTable = "doya_app_state";
 const cloudStateId = "main";
+const analyticsEventTypes = new Set([
+  "employee_checkin",
+  "employee_submit",
+  "employee_checkout",
+  "manager_review",
+  "manager_approve",
+  "task_completed",
+  "link_opened",
+]);
 
 function currentCloudStateId() {
   return window.LeveloveAuth?.storeStateId?.() || cloudStateId;
@@ -72,4 +81,67 @@ function safeCacheState(state) {
   } catch (error) {
     console.warn("Local state cache skipped", error);
   }
+}
+
+function normalizeAnalyticsEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events
+    .filter((event) => event && analyticsEventTypes.has(event.type) && event.timestamp)
+    .map((event) => ({
+      ...event,
+      storeId: event.storeId || analyticsStoreId(),
+      date: event.date || analyticsDate(event.timestamp),
+    }))
+    .slice(-5000);
+}
+
+function mergeAnalyticsEvents(...eventLists) {
+  const map = new Map();
+  eventLists.flatMap(normalizeAnalyticsEvents).forEach((event) => {
+    const key = event.id || `${event.type}:${event.timestamp}:${event.staffId || ""}:${event.entryId || ""}:${event.taskId || ""}`;
+    map.set(key, { ...(map.get(key) || {}), ...event, id: key });
+  });
+  return [...map.values()]
+    .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)))
+    .slice(-5000);
+}
+
+function analyticsStoreId() {
+  const storeId = window.LeveloveAuth?.activeStoreId?.() || "";
+  return storeId || "main";
+}
+
+function analyticsDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function createAnalyticsEvent(type, detail = {}) {
+  if (!analyticsEventTypes.has(type)) return null;
+  const timestamp = new Date().toISOString();
+  return {
+    id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    storeId: detail.storeId || analyticsStoreId(),
+    date: detail.date || analyticsDate(timestamp),
+    timestamp,
+    ...detail,
+  };
+}
+
+function appendAnalyticsEvent(state, type, detail = {}) {
+  if (!state) return null;
+  const event = createAnalyticsEvent(type, detail);
+  if (!event) return null;
+  if (event.dedupeKey && normalizeAnalyticsEvents(state.analyticsEvents).some((item) => (
+    item.type === event.type && item.dedupeKey === event.dedupeKey
+  ))) {
+    return null;
+  }
+  state.analyticsEvents = mergeAnalyticsEvents(state.analyticsEvents, [event]);
+  return event;
 }

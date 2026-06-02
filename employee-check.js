@@ -937,6 +937,10 @@ function init() {
   setEmployeeTab(pageParams.get("tab") || "home", { scroll: false });
   restoreDraft();
   renderCheckoutTime();
+  trackEmployeeEvent("link_opened", {
+    page: "employee",
+    source: lockedStaffId ? "staff_link" : isPreviewMode ? "preview" : "employee_app",
+  });
 }
 
 function requestCheckoutSubmit() {
@@ -958,6 +962,7 @@ function completePerformanceMission(button) {
   button.classList.add("is-complete");
   button.textContent = currentLang === "vi" ? "Đã hoàn thành ✓" : "완료됨 ✓";
   showHatiPraise(fieldId);
+  trackTaskCompleted(fieldId, { taskName: performanceItemLabel(item) });
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
   renderEmployeeTabContent("performance", questDoneState(), selectedStaff());
@@ -1020,6 +1025,7 @@ function loadState() {
     teamEntries: [],
     selfChecks: [],
     announcements: [],
+    analyticsEvents: [],
     storeSettings: defaultStoreSettings,
   };
   try {
@@ -1030,6 +1036,7 @@ function loadState() {
       storeSettings: normalizeStoreSettings(saved?.storeSettings, { allowUrlOverrides: true }),
       selfChecks: saved?.selfChecks || [],
       announcements: saved?.announcements || [],
+      analyticsEvents: normalizeAnalyticsEvents(saved?.analyticsEvents),
     };
   } catch {
     return fallback;
@@ -1039,7 +1046,32 @@ function loadState() {
 function saveState() {
   state.staff = staff;
   state.selfChecks = state.selfChecks || [];
+  state.analyticsEvents = normalizeAnalyticsEvents(state.analyticsEvents);
   return saveEmployeeStateEverywhere(state);
+}
+
+function trackEmployeeEvent(type, detail = {}) {
+  const person = selectedStaff();
+  const event = appendAnalyticsEvent(state, type, {
+    actorRole: "employee",
+    staffId: person?.id || lockedStaffId || "",
+    staffName: person ? visibleStaffName(person, 0) : lockedStaffName,
+    role: person?.role || lockedStaffRole || "",
+    date: els.date?.value || toInputDate(new Date()),
+    ...detail,
+  });
+  if (event) return saveState();
+  return Promise.resolve(false);
+}
+
+function trackTaskCompleted(taskId, detail = {}) {
+  const person = selectedStaff();
+  if (!taskId || !person) return Promise.resolve(false);
+  return trackEmployeeEvent("task_completed", {
+    taskId,
+    dedupeKey: `${els.date.value || toInputDate(new Date())}:${person.id}:${taskId}`,
+    ...detail,
+  });
 }
 
 function saveEmployeeStateEverywhere(nextState) {
@@ -1067,7 +1099,13 @@ function saveEmployeeStateEverywhere(nextState) {
 
 function mergeEmployeeStateForCloud(cloudState, localState, person, date) {
   if (!cloudState) return localState;
-  if (!person || !date) return { ...cloudState, selfChecks: cloudState.selfChecks || [] };
+  if (!person || !date) {
+    return {
+      ...cloudState,
+      selfChecks: cloudState.selfChecks || [],
+      analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, localState.analyticsEvents),
+    };
+  }
 
   const cloudChecks = Array.isArray(cloudState.selfChecks) ? cloudState.selfChecks : [];
   const localChecks = Array.isArray(localState.selfChecks) ? localState.selfChecks : [];
@@ -1088,6 +1126,7 @@ function mergeEmployeeStateForCloud(cloudState, localState, person, date) {
   return {
     ...cloudState,
     selfChecks: upsertChecksById([...untouchedCloud, ...localMine]),
+    analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, localState.analyticsEvents),
   };
 }
 
@@ -1116,12 +1155,14 @@ async function syncCloudState() {
       renderStaffOptions();
       return false;
     }
+    const localAnalyticsEvents = state.analyticsEvents;
     state = {
       ...state,
       ...cloudState,
       storeSettings: normalizeStoreSettings(cloudState.storeSettings, { allowUrlOverrides: false }),
       selfChecks: cloudState.selfChecks || [],
       announcements: Array.isArray(cloudState.announcements) ? cloudState.announcements : (state.announcements || []),
+      analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, cloudState.analyticsEvents),
     };
     staff = normalizeStaff(state.staff);
     if (!localStorage.getItem(langStorageKey)) currentLang = state.storeSettings.defaultLanguage || "ko";
@@ -1388,6 +1429,11 @@ function handleAttendanceToggle() {
   if (els.attendance.checked && !hadAttendanceTime && attendancePraiseKey !== currentKey) {
     attendancePraiseKey = currentKey;
     showHatiPraise("attendance");
+    trackEmployeeEvent("employee_checkin", {
+      attendanceTime,
+      dedupeKey: `${els.date.value}:${selectedStaff()?.id || ""}:employee_checkin`,
+    });
+    trackTaskCompleted("attendance", { attendanceTime });
   }
   updateQuestProgress();
   saveDraft({ showMessage: false });
@@ -1397,6 +1443,7 @@ function handleAttendanceToggle() {
 
 function handleGoalToggle() {
   if (els.goal?.checked) praiseOnce("goal");
+  if (els.goal?.checked) trackTaskCompleted("goal");
   updateQuestProgress();
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
@@ -1409,6 +1456,7 @@ function completeCheckoutGuard() {
   if (els.cleanStatus) els.cleanStatus.value = "이상 없음";
   if (els.cleaning) els.cleaning.checked = true;
   if (!wasDone) praiseOnce("cleaning");
+  if (!wasDone) trackTaskCompleted("checkout_guard");
   updateQuestProgress();
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
@@ -1489,6 +1537,7 @@ function completePraise() {
     els.praiseCompleteButton.textContent = currentLang === "vi" ? "Đã gửi ✓" : "칭찬 완료 ✓";
   }
   praiseOnce("help");
+  trackTaskCompleted("praise");
   updateQuestProgress();
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
@@ -2043,7 +2092,10 @@ function handleRealtimeAdjust(event) {
   syncLegacyPerformanceFields();
   updateSpecialCleanLastStatus();
   const after = readRealtimeCount(input);
-  if (delta > 0 && after > before) showHatiPraise(button.dataset.realtimeAdjust);
+  if (delta > 0 && after > before) {
+    showHatiPraise(button.dataset.realtimeAdjust);
+    trackTaskCompleted(button.dataset.realtimeAdjust, { taskName: performanceItemLabel(item) });
+  }
   updateQuestProgress();
   if (els.employeePhone?.getAttribute("data-active-tab") === "performance") {
     renderEmployeeTabPanel("performance");
@@ -2657,6 +2709,7 @@ async function submitSelfCheck(event) {
   const existingLive = (state.selfChecks || []).find((item) => (
     item.date === date && item.staffId === person.id && item.status === "live"
   ));
+  const submittedEntryId = existingLive?.id || entry.id;
   if (existingLive) {
     Object.assign(existingLive, {
       ...entry,
@@ -2668,6 +2721,25 @@ async function submitSelfCheck(event) {
   } else {
     state.selfChecks = [...(state.selfChecks || []), { ...entry, submittedAt: new Date().toISOString() }];
   }
+  appendAnalyticsEvent(state, "employee_checkout", {
+    actorRole: "employee",
+    entryId: submittedEntryId,
+    staffId: person.id,
+    staffName: visibleStaffName(person, 0),
+    role: person.role,
+    date,
+    checkoutTime,
+    dedupeKey: `${date}:${person.id}:employee_checkout`,
+  });
+  appendAnalyticsEvent(state, "employee_submit", {
+    actorRole: "employee",
+    entryId: submittedEntryId,
+    staffId: person.id,
+    staffName: visibleStaffName(person, 0),
+    role: person.role,
+    date,
+    dedupeKey: `${date}:${person.id}:employee_submit`,
+  });
   await saveState();
   lastSubmitFeedback = {
     date,

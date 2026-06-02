@@ -276,6 +276,7 @@ function init() {
 
   setLogTab(activeLogTab);
   setAdminView(activeAdminView);
+  trackAdminEvent("link_opened", { page: "admin", view: activeAdminView });
   if (importLegacyStaffFromDefaultStore() || importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries()) saveState();
   renderAdminOnboarding();
   render();
@@ -306,6 +307,13 @@ function setAdminView(view, options = {}) {
   if (options.updateHash && window.location.hash !== `#${nextView}`) {
     history.replaceState(null, "", `#${nextView}`);
   }
+  if (nextView === "approval") {
+    trackAdminEvent("manager_review", {
+      page: "admin",
+      view: "approval",
+      dedupeKey: `${toInputDate(new Date())}:manager_review:${window.LeveloveAuth?.currentSession?.()?.userId || "manager"}`,
+    });
+  }
 }
 
 function setLogTab(tab) {
@@ -328,11 +336,20 @@ function loadState() {
     teamEntries: [],
     selfChecks: [],
     announcements: [],
+    analyticsEvents: [],
   };
 
   try {
     const saved = JSON.parse(localStorage.getItem(appStorageKey()));
-    return { ...fallback, ...saved, bonusSettings: normalizeBonusSettings(saved?.bonusSettings), storeSettings: normalizeStoreSettings(saved?.storeSettings), selfChecks: saved?.selfChecks || [], announcements: saved?.announcements || [] };
+    return {
+      ...fallback,
+      ...saved,
+      bonusSettings: normalizeBonusSettings(saved?.bonusSettings),
+      storeSettings: normalizeStoreSettings(saved?.storeSettings),
+      selfChecks: saved?.selfChecks || [],
+      announcements: saved?.announcements || [],
+      analyticsEvents: normalizeAnalyticsEvents(saved?.analyticsEvents),
+    };
   } catch {
     return fallback;
   }
@@ -340,13 +357,28 @@ function loadState() {
 
 function saveState() {
   state.staff = staff;
+  state.analyticsEvents = normalizeAnalyticsEvents(state.analyticsEvents);
   saveStateEverywhere(state);
+}
+
+function trackAdminEvent(type, detail = {}) {
+  const session = window.LeveloveAuth?.currentSession?.();
+  const user = window.LeveloveAuth?.currentUser?.();
+  const event = appendAnalyticsEvent(state, type, {
+    actorRole: session?.role || user?.role || "manager",
+    actorId: session?.userId || user?.id || "",
+    actorName: user?.name || "",
+    ...detail,
+  });
+  if (event) saveState();
+  return event;
 }
 
 async function syncCloudState() {
   try {
     const cloudState = await loadStateFromCloud();
     if (!cloudState) return;
+    const localAnalyticsEvents = state.analyticsEvents;
     state = {
       ...state,
       ...cloudState,
@@ -354,6 +386,7 @@ async function syncCloudState() {
       storeSettings: normalizeStoreSettings(cloudState.storeSettings),
       selfChecks: cloudState.selfChecks || [],
       announcements: Array.isArray(cloudState.announcements) ? cloudState.announcements : (state.announcements || []),
+      analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, cloudState.analyticsEvents),
     };
     staff = normalizeStaff(state.staff);
     const repaired = importLegacyStaffFromDefaultStore() || importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries();
@@ -677,55 +710,93 @@ function render() {
   renderTeamLog(month);
 }
 
+function todayOperationsMetrics(date = toInputDate(new Date())) {
+  const activeEmployees = activeStaff().filter((person) => !isManagerRole(person.role));
+  const activeEmployeeIds = new Set(activeEmployees.map((person) => person.id));
+  const scheduledStaff = activeEmployees.filter((person) => isScheduledWorkDay(person, date));
+  const scheduledIds = new Set(scheduledStaff.map((person) => person.id));
+  const todayChecks = (state.selfChecks || []).filter((entry) => (
+    entry.date === date &&
+    activeEmployeeIds.has(entry.staffId) &&
+    entry.status !== "rejected"
+  ));
+  const todayApprovedEntries = (state.personalEntries || []).filter((entry) => (
+    entry.date === date &&
+    activeEmployeeIds.has(entry.staffId)
+  ));
+  const checkedInIds = new Set();
+  const submittedIds = new Set();
+  const approvedIds = new Set();
+
+  todayChecks.forEach((entry) => {
+    if (entry.attendance || entry.attendanceTime) checkedInIds.add(entry.staffId);
+    if (["pending", "approved"].includes(entry.status)) submittedIds.add(entry.staffId);
+    if (entry.status === "approved") approvedIds.add(entry.staffId);
+  });
+  todayApprovedEntries.forEach((entry) => {
+    if (entry.worked || entry.attendanceTime) checkedInIds.add(entry.staffId);
+    submittedIds.add(entry.staffId);
+    approvedIds.add(entry.staffId);
+  });
+
+  const scheduledSubmittedIds = new Set([...submittedIds].filter((staffId) => scheduledIds.has(staffId)));
+  return {
+    scheduled: scheduledIds.size,
+    checkedIn: checkedInIds.size,
+    submitted: submittedIds.size,
+    approved: approvedIds.size,
+    missing: Math.max(0, scheduledIds.size - scheduledSubmittedIds.size),
+  };
+}
+
 function renderTodayChecklist(storeSettings = normalizeStoreSettings(state.storeSettings)) {
   if (!els.todayCheckList) return;
   const todayKey = toInputDate(new Date());
   const dailyPoints = normalizeOptionalOperationPoints(storeSettings.dailyOperationPoints);
   const hasTodayBriefing = dailyPoints.length > 0 && storeSettings.dailyOperationDate === todayKey;
-  const pendingChecks = (state.selfChecks || []).filter((entry) => entry.status === "pending").length;
-  const liveChecks = (state.selfChecks || []).filter((entry) => entry.status === "live").length;
-  const headline = pendingChecks || liveChecks
-    ? `승인 ${pendingChecks}건 · 진행 ${liveChecks}건`
-    : hasTodayBriefing
-      ? "오늘 브리핑 등록됨"
-      : "브리핑 입력 필요";
-  const sublineParts = [
-    hasTodayBriefing ? `브리핑 ${dailyPoints.length}개` : "브리핑 미등록",
-    pendingChecks || liveChecks ? `승인 ${pendingChecks} · 진행 ${liveChecks}` : "승인 대기 없음",
-  ];
-  if (els.todayCheckHeadline) els.todayCheckHeadline.textContent = headline;
-  if (els.todayCheckSubline) els.todayCheckSubline.textContent = sublineParts.join(" · ");
+  const metrics = todayOperationsMetrics(todayKey);
+  if (els.todayCheckHeadline) els.todayCheckHeadline.textContent = "오늘 운영 지표";
+  if (els.todayCheckSubline) {
+    els.todayCheckSubline.textContent = hasTodayBriefing
+      ? `브리핑 ${dailyPoints.length}개 등록됨`
+      : "브리핑 미등록";
+  }
   const items = [
     {
-      state: hasTodayBriefing ? "ok" : "warn",
-      title: "오늘 운영 포인트",
-      meta: hasTodayBriefing ? `${dailyPoints.length}개 입력됨` : "매니저 운영 포인트를 먼저 적어주세요",
-      action: "입력하기",
-      view: "ops",
+      state: metrics.checkedIn ? "ok" : "warn",
+      title: "출근 인원",
+      value: `${metrics.checkedIn}명`,
+      meta: `예정 ${metrics.scheduled}명`,
     },
     {
-      state: pendingChecks || liveChecks ? "warn" : "ok",
-      title: "승인 대기",
-      meta: pendingChecks || liveChecks ? `승인 ${pendingChecks}건 · 진행 ${liveChecks}건` : "대기 중인 직원 제출 없음",
-      action: "확인하기",
-      view: "approval",
+      state: metrics.submitted ? "ok" : "warn",
+      title: "제출 인원",
+      value: `${metrics.submitted}명`,
+      meta: "퇴근 제출 기준",
+    },
+    {
+      state: metrics.approved ? "ok" : "warn",
+      title: "승인 인원",
+      value: `${metrics.approved}명`,
+      meta: "매니저 승인 완료",
+    },
+    {
+      state: metrics.missing ? "warn" : "ok",
+      title: "미제출 인원",
+      value: `${metrics.missing}명`,
+      meta: "예정 인원 중 미제출",
     },
   ];
   els.todayCheckList.innerHTML = items.map((item) => `
-    <article class="today-check-item is-${escapeHtml(item.state)}">
+    <article class="today-check-item today-metric-card is-${escapeHtml(item.state)}">
       <span aria-hidden="true">${item.state === "ok" ? "OK" : item.state === "warn" ? "!" : "-"}</span>
       <div>
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.meta)}</small>
       </div>
-      ${item.href
-        ? `<a class="btn ghost" href="${escapeHtml(item.href)}">${escapeHtml(item.action)}</a>`
-        : `<button class="btn ghost" type="button" data-admin-view="${escapeHtml(item.view)}">${escapeHtml(item.action)}</button>`}
+      <b>${escapeHtml(item.value)}</b>
     </article>
   `).join("");
-  els.todayCheckList.querySelectorAll("[data-admin-view]").forEach((button) => {
-    button.addEventListener("click", () => setAdminView(button.dataset.adminView, { updateHash: true }));
-  });
 }
 
 function renderAdminWorkspaceSummary(month, hallTeamAverage, kitchenTeamAverage) {
@@ -1655,6 +1726,14 @@ function submitLiveSelfCheck(entryId) {
   selfCheck.checkoutTime = checkoutTimeValue;
   selfCheck.submittedAt = new Date().toISOString();
   selfCheck.updatedAt = new Date().toISOString();
+  appendAnalyticsEvent(state, "manager_review", {
+    actorRole: "manager",
+    entryId: selfCheck.id,
+    staffId: selfCheck.staffId,
+    staffName: selfCheck.staffName || "",
+    date: selfCheck.date,
+    action: "submit_live_check",
+  });
   saveState();
   render();
 }
@@ -1752,6 +1831,14 @@ function approveSelfCheck(entryId) {
   state.personalEntries.push(entry);
   selfCheck.status = "approved";
   selfCheck.approvedAt = new Date().toISOString();
+  appendAnalyticsEvent(state, "manager_approve", {
+    actorRole: "manager",
+    entryId: selfCheck.id,
+    staffId: selfCheck.staffId,
+    staffName: entry.staffName,
+    date: selfCheck.date,
+    approvedXp: entry.approvedXp || 0,
+  });
   saveState();
   render();
 }
@@ -2293,9 +2380,3 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
-
-
-
-
-
-
