@@ -689,6 +689,8 @@ let attendancePraiseKey = "";
 let lastRenderedXp = null;
 let activeLevelUpNotice = null;
 let cloudSaveRevision = 0;
+let cloudStaffLoaded = false;
+let cloudSyncPromise = Promise.resolve(false);
 const questPraiseKeys = new Set();
 let currentLang = localStorage.getItem(langStorageKey) || normalizeStoreSettings(state.storeSettings).defaultLanguage || "ko";
 const pageParams = new URLSearchParams(window.location.search);
@@ -804,7 +806,7 @@ function init() {
   renderAnnouncement();
   renderOperationPoints();
   updateQuestProgress();
-  syncCloudState();
+  cloudSyncPromise = syncCloudState();
 
   els.staffSelect.addEventListener("change", () => {
     restoreDraft();
@@ -1160,6 +1162,7 @@ async function syncCloudState() {
       renderStaffOptions();
       return false;
     }
+    cloudStaffLoaded = true;
     const localAnalyticsEvents = state.analyticsEvents;
     state = {
       ...state,
@@ -1187,6 +1190,15 @@ async function syncCloudState() {
     renderStaffOptions();
     updateQuestProgress();
     return false;
+  }
+}
+
+async function ensureCloudStaffReady() {
+  if (typeof cloudEnabled !== "function" || !cloudEnabled() || cloudStaffLoaded) return;
+  try {
+    await cloudSyncPromise;
+  } catch (error) {
+    console.warn(error);
   }
 }
 
@@ -2640,6 +2652,7 @@ function daysBetweenDates(startDate, endDate) {
 
 async function submitSelfCheck(event) {
   event.preventDefault();
+  await ensureCloudStaffReady();
   const person = selectedStaff();
   if (!person) {
     alert(currentLang === "vi" ? "Vui lòng mở bằng link cá nhân để ghi nhận." : "직원 전용 링크로 접속한 뒤 기록할 수 있어요.");
@@ -5380,9 +5393,47 @@ function selectedStaff() {
 function lockedStaff() {
   if (!lockedStaffId) return undefined;
   const person = activeStaff().find((item) => item.id === lockedStaffId && !isManagerRole(item.role));
-  if (!person) return lockedStaffFromUrl();
+  if (!person) {
+    const canonical = canonicalStaffFromLegacyLink();
+    if (canonical) return canonical;
+    if (cloudStaffLoaded) return undefined;
+    return lockedStaffFromUrl();
+  }
   if (person.accessToken && lockedStaffToken !== person.accessToken) return undefined;
   return person;
+}
+
+function canonicalStaffFromLegacyLink() {
+  const legacyName = staffIdentityKey(lockedStaffName);
+  if (!legacyName) return undefined;
+  const candidates = activeStaff().filter((item) => (
+    !isManagerRole(item.role) &&
+    rolesShareStaffGroup(item.role, lockedStaffRole || "hall") &&
+    namesLookLikeSameStaff(staffIdentityKey(item.name), legacyName)
+  ));
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function namesLookLikeSameStaff(left, right) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  return shorter.length >= 6 && longer.includes(shorter) && longer.length - shorter.length <= 2;
+}
+
+function staffIdentityKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]/g, "");
+}
+
+function rolesShareStaffGroup(leftRole, rightRole) {
+  const left = normalizeRole(leftRole);
+  const right = normalizeRole(rightRole);
+  if (isHallRole(left) && isHallRole(right)) return true;
+  if (isKitchenRole(left) && isKitchenRole(right)) return true;
+  return left === right;
 }
 
 function lockedStaffFromUrl() {

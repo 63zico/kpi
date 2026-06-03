@@ -355,10 +355,60 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   state.staff = staff;
   state.analyticsEvents = normalizeAnalyticsEvents(state.analyticsEvents);
-  saveStateEverywhere(state);
+  localStorage.setItem(appStorageKey(), JSON.stringify(state));
+  if (options.replaceSelfChecks || typeof cloudEnabled !== "function" || !cloudEnabled()) {
+    saveStateEverywhere(state);
+    return;
+  }
+  saveStatePreservingCloudSelfChecks({
+    ...state,
+    selfChecks: [...(state.selfChecks || [])],
+    analyticsEvents: [...(state.analyticsEvents || [])],
+  });
+}
+
+async function saveStatePreservingCloudSelfChecks(snapshot) {
+  try {
+    const cloudState = await loadStateFromCloud();
+    if (!cloudState) {
+      saveStateEverywhere(snapshot);
+      return;
+    }
+    const nextState = {
+      ...snapshot,
+      selfChecks: mergeSelfChecksForAdminSave(cloudState.selfChecks, snapshot.selfChecks),
+      analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, snapshot.analyticsEvents),
+    };
+    state = nextState;
+    staff = normalizeStaff(state.staff);
+    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    saveStateEverywhere(nextState);
+  } catch (error) {
+    console.warn(error);
+    saveStateEverywhere(snapshot);
+  }
+}
+
+function mergeSelfChecksForAdminSave(cloudChecks, localChecks) {
+  const map = new Map();
+  [...(Array.isArray(cloudChecks) ? cloudChecks : []), ...(Array.isArray(localChecks) ? localChecks : [])].forEach((entry) => {
+    if (!entry) return;
+    const key = entry.id || `${entry.date}::${entry.staffId}::${entry.status || "pending"}`;
+    const previous = map.get(key);
+    if (!previous || selfCheckVersionTime(entry) >= selfCheckVersionTime(previous)) {
+      map.set(key, entry);
+    }
+  });
+  return [...map.values()];
+}
+
+function selfCheckVersionTime(entry) {
+  const value = entry?.updatedAt || entry?.approvedAt || entry?.rejectedAt || entry?.submittedAt || entry?.createdAt || "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
 }
 
 function trackAdminEvent(type, detail = {}) {
@@ -1848,7 +1898,7 @@ function deleteSelfCheck(entryId) {
     .join(" · ");
   if (!confirm(`${label} 기록을 삭제할까요?\n삭제하면 직원 퀘스트 승인창에서 사라집니다.`)) return;
   state.selfChecks = (state.selfChecks || []).filter((entry) => entry.id !== entryId);
-  saveState();
+  saveState({ replaceSelfChecks: true });
   render();
 }
 
@@ -1952,7 +2002,7 @@ function deletePersonalEntry(event) {
   if (deletedEntry?.sourceSelfCheckId) {
     state.selfChecks = (state.selfChecks || []).filter((entry) => entry.id !== deletedEntry.sourceSelfCheckId);
   }
-  saveState();
+  saveState({ replaceSelfChecks: Boolean(deletedEntry?.sourceSelfCheckId) });
   render();
 }
 
@@ -2089,7 +2139,7 @@ function clearSelectedTodayRecords() {
   if (!person) return;
   if (!confirm(`${person.name}님의 오늘 제출/승인 기록을 삭제할까요?`)) return;
   const removed = removeTodayRecords((entry) => entry.staffId === person.id, (entry) => entry.staffId === person.id);
-  saveState();
+  saveState({ replaceSelfChecks: true });
   render();
   setTestToolStatus(`${person.name} 오늘 기록 ${removed}건을 삭제했어요.`);
 }
@@ -2099,7 +2149,7 @@ function clearTodaySelfChecks() {
   const date = toInputDate(new Date());
   const before = (state.selfChecks || []).length;
   state.selfChecks = (state.selfChecks || []).filter((entry) => entry.date !== date);
-  saveState();
+  saveState({ replaceSelfChecks: true });
   render();
   setTestToolStatus(`오늘 제출 ${before - state.selfChecks.length}건을 삭제했어요.`);
 }
@@ -2108,7 +2158,7 @@ function clearPendingSelfChecks() {
   if (!confirm("승인대기/진행중 제출을 모두 비울까요?")) return;
   const before = (state.selfChecks || []).length;
   state.selfChecks = (state.selfChecks || []).filter((entry) => !["live", "pending"].includes(entry.status));
-  saveState();
+  saveState({ replaceSelfChecks: true });
   render();
   setTestToolStatus(`승인대기/진행중 제출 ${before - state.selfChecks.length}건을 삭제했어요.`);
 }
@@ -2120,7 +2170,7 @@ function clearTodayTestRecords() {
   state.selfChecks = (state.selfChecks || []).filter((entry) => entry.date !== date);
   state.personalEntries = (state.personalEntries || []).filter((entry) => entry.date !== date);
   state.teamEntries = (state.teamEntries || []).filter((entry) => entry.date !== date);
-  saveState();
+  saveState({ replaceSelfChecks: true });
   render();
   setTestToolStatus(`오늘 테스트 기록 ${before - totalRecordCount()}건을 초기화했어요.`);
 }
