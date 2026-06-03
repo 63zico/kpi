@@ -1137,6 +1137,83 @@ function mergeEmployeeStateForCloud(cloudState, localState, person, date) {
   };
 }
 
+function recoverLocalPendingSelfChecksForCloud(cloudState, localState) {
+  if (!cloudState || isPreviewMode) return { state: cloudState, recoveredCount: 0 };
+  const date = els.date?.value || toInputDate(new Date());
+  const cloudChecks = Array.isArray(cloudState.selfChecks) ? cloudState.selfChecks : [];
+  const localChecks = Array.isArray(localState.selfChecks) ? localState.selfChecks : [];
+  const recovered = [];
+
+  localChecks.forEach((entry) => {
+    if (!entry || entry.date !== date || entry.status !== "pending") return;
+    if (!localSelfCheckBelongsToCurrentLink(entry)) return;
+    const person = canonicalStaffForRecoveredCheck(entry, cloudState);
+    if (!person) return;
+    const alreadyInCloud = cloudChecks.some((cloudEntry) => (
+      cloudEntry.date === entry.date &&
+      cloudEntry.staffId === person.id &&
+      ["pending", "approved"].includes(cloudEntry.status)
+    ));
+    if (alreadyInCloud) return;
+    recovered.push({
+      ...entry,
+      staffId: person.id,
+      staffName: visibleStaffName(person, 0),
+      role: person.role,
+      roleName: roleLabel(person.role),
+      status: "pending",
+      updatedAt: new Date().toISOString(),
+      recoveredFromLocalAt: new Date().toISOString(),
+    });
+  });
+
+  if (!recovered.length) {
+    return {
+      state: {
+        ...cloudState,
+        analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, localState.analyticsEvents),
+      },
+      recoveredCount: 0,
+    };
+  }
+
+  return {
+    state: {
+      ...cloudState,
+      selfChecks: upsertChecksById([...cloudChecks, ...recovered]),
+      analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, localState.analyticsEvents),
+    },
+    recoveredCount: recovered.length,
+  };
+}
+
+function localSelfCheckBelongsToCurrentLink(entry) {
+  if (!lockedStaffId && !lockedStaffName) return false;
+  if (entry.staffId && lockedStaffId && entry.staffId === lockedStaffId) return true;
+  const entryName = staffIdentityKey(entry.staffName);
+  const linkName = staffIdentityKey(lockedStaffName);
+  if (!entryName || !linkName || !namesLookLikeSameStaff(entryName, linkName)) return false;
+  return rolesShareStaffGroup(entry.role || lockedStaffRole, lockedStaffRole || entry.role || "hall");
+}
+
+function canonicalStaffForRecoveredCheck(entry, cloudState) {
+  const people = Array.isArray(cloudState.staff)
+    ? normalizeStaff(cloudState.staff).filter((person) => person.active !== false && !isManagerRole(person.role))
+    : [];
+  const exact = people.find((person) => person.id === entry.staffId || person.id === lockedStaffId);
+  if (exact) return exact;
+
+  const entryName = staffIdentityKey(entry.staffName || lockedStaffName);
+  const entryRole = entry.role || lockedStaffRole || "hall";
+  const candidates = people.filter((person) => (
+    rolesShareStaffGroup(person.role, entryRole) &&
+    namesLookLikeSameStaff(staffIdentityKey(person.name), entryName)
+  ));
+  if (candidates.length === 1) return candidates[0];
+  if (lockedStaffId && lockedStaffToken) return lockedStaffFromUrl();
+  return undefined;
+}
+
 function upsertChecksById(entries) {
   const map = new Map();
   entries.forEach((entry) => {
@@ -1163,14 +1240,28 @@ async function syncCloudState() {
       return false;
     }
     cloudStaffLoaded = true;
-    const localAnalyticsEvents = state.analyticsEvents;
+    const localSnapshot = {
+      ...state,
+      selfChecks: [...(state.selfChecks || [])],
+      analyticsEvents: normalizeAnalyticsEvents(state.analyticsEvents),
+    };
+    const recovery = recoverLocalPendingSelfChecksForCloud(cloudState, localSnapshot);
+    const incomingCloudState = recovery.state || cloudState;
+    if (recovery.recoveredCount > 0) {
+      try {
+        await withTimeout(saveStateToCloud(incomingCloudState), cloudCriticalSaveTimeoutMs);
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+    const localAnalyticsEvents = localSnapshot.analyticsEvents;
     state = {
       ...state,
-      ...cloudState,
-      storeSettings: normalizeStoreSettings(cloudState.storeSettings),
-      selfChecks: cloudState.selfChecks || [],
-      announcements: Array.isArray(cloudState.announcements) ? cloudState.announcements : (state.announcements || []),
-      analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, cloudState.analyticsEvents),
+      ...incomingCloudState,
+      storeSettings: normalizeStoreSettings(incomingCloudState.storeSettings),
+      selfChecks: incomingCloudState.selfChecks || [],
+      announcements: Array.isArray(incomingCloudState.announcements) ? incomingCloudState.announcements : (state.announcements || []),
+      analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, incomingCloudState.analyticsEvents),
     };
     staff = normalizeStaff(state.staff);
     if (!localStorage.getItem(langStorageKey)) currentLang = state.storeSettings.defaultLanguage || "ko";

@@ -3,6 +3,15 @@ const leveloveAuthSessionKey = "levelove-auth-session-v1";
 const leveloveAuthCloudId = "auth:levelove";
 const leveloveLastTestKey = "levelove-last-test-store-v1";
 const leveloveDefaultStoreId = "store_mpr0b4hw_ru2t0xt";
+const leveloveArchivedStoreIds = new Set([
+  "store_test_metrics",
+  "store_team_restore",
+  "store_mpqx4svm_yythxv4",
+  "store_mptkxnqv_uuoqamc",
+  "store_mpnybncn_1bxy2ty",
+  "store_mpp9adqs_x7lrsin",
+  "store_mpr0023n_dizxbs2",
+]);
 
 (function initLeveloveAuth() {
   const publicPages = ["auth.html", "index.html", "staff.html", "levelove-staff-9c4f2a7.html"];
@@ -381,13 +390,22 @@ const leveloveDefaultStoreId = "store_mpr0b4hw_ru2t0xt";
     return params.get("store") || params.get("storeId") || "";
   }
 
-  function activeStoreId() {
-    const explicitStoreId = storeIdFromUrl();
-    if (explicitStoreId) return explicitStoreId;
-    const activeSession = session();
-    const authState = loadAuthState();
+  function canonicalStoreId(authState = loadAuthState()) {
     if (authState.cleanupVersion && authState.canonicalStoreId) return authState.canonicalStoreId;
-    return authState.canonicalStoreId || leveloveDefaultStoreId || activeSession?.storeId || "main";
+    return leveloveDefaultStoreId || authState.canonicalStoreId || "";
+  }
+
+  function activeStoreId() {
+    const authState = loadAuthState();
+    const canonicalId = canonicalStoreId(authState);
+    const explicitStoreId = storeIdFromUrl();
+    if (explicitStoreId) {
+      if (authState.cleanupVersion && authState.canonicalStoreId && explicitStoreId !== authState.canonicalStoreId) return authState.canonicalStoreId;
+      if (canonicalId && leveloveArchivedStoreIds.has(explicitStoreId)) return canonicalId;
+      return explicitStoreId;
+    }
+    const activeSession = session();
+    return canonicalId || activeSession?.storeId || "main";
   }
 
   function storeStateId() {
@@ -397,7 +415,42 @@ const leveloveDefaultStoreId = "store_mpr0b4hw_ru2t0xt";
 
   function stateStorageKey(baseKey) {
     const storeId = activeStoreId();
-    return storeId && storeId !== "main" ? `${baseKey}:${storeId}` : baseKey;
+    const key = storeId && storeId !== "main" ? `${baseKey}:${storeId}` : baseKey;
+    migrateLegacyStateStorage(baseKey, key, storeId);
+    return key;
+  }
+
+  function migrateLegacyStateStorage(baseKey, targetKey, targetStoreId) {
+    const legacyStoreId = storeIdFromUrl();
+    if (!legacyStoreId || legacyStoreId === targetStoreId) return;
+    const legacyKey = legacyStoreId && legacyStoreId !== "main" ? `${baseKey}:${legacyStoreId}` : baseKey;
+    if (!legacyKey || legacyKey === targetKey || localStorage.getItem(`${legacyKey}:migrated:${targetStoreId}`)) return;
+    const legacyRaw = localStorage.getItem(legacyKey);
+    if (!legacyRaw) return;
+    try {
+      const current = JSON.parse(localStorage.getItem(targetKey) || "{}");
+      const legacy = JSON.parse(legacyRaw);
+      const merged = {
+        ...current,
+        selfChecks: mergeRecordList(current.selfChecks, legacy.selfChecks, (entry) => (
+          entry?.id || `${entry?.date || ""}:${entry?.staffId || ""}:${entry?.status || ""}`
+        )),
+        analyticsEvents: mergeRecordList(current.analyticsEvents, legacy.analyticsEvents, (entry) => entry?.id),
+      };
+      localStorage.setItem(targetKey, JSON.stringify(merged));
+      localStorage.setItem(`${legacyKey}:migrated:${targetStoreId}`, "1");
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+
+  function mergeRecordList(currentItems, legacyItems, keyFn) {
+    const map = new Map();
+    [...(Array.isArray(currentItems) ? currentItems : []), ...(Array.isArray(legacyItems) ? legacyItems : [])].forEach((item, index) => {
+      const key = keyFn(item) || `legacy-${index}`;
+      map.set(key, { ...(map.get(key) || {}), ...item });
+    });
+    return [...map.values()];
   }
 
   function requireRole(allowedRoles, options = {}) {
