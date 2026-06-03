@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-data-cleanup-1";
+const employeeAppVersion = "20260603-loginless-manager-1";
 const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {

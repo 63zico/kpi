@@ -404,7 +404,7 @@ const leveloveLastTestKey = "levelove-last-test-store-v1";
     const legacyManagerLink = currentPath === "levelove-admin-9c4f2a7.html" && params.get("manager") && params.get("token") && storeIdFromUrl();
     if (previewAllowed) return { ok: true, preview: true, user, session: activeSession };
     if (legacyStaffLink && !activeSession) return { ok: true, legacy: true, user, session: activeSession };
-    if (legacyManagerLink && !activeSession) {
+    if (legacyManagerLink) {
       renderUserPill({ name: params.get("name") || "매니저", role: "manager" });
       return {
         ok: true,
