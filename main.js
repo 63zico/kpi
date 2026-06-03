@@ -291,12 +291,12 @@ function adminViewFromHash(hash) {
     logPanel: "logs",
     teamForm: "team",
   };
-  if (["today", "approval", "ops", "logs"].includes(value)) return value;
+  if (["today", "approval", "team", "ops", "logs"].includes(value)) return value;
   return viewMap[value] || "";
 }
 
 function setAdminView(view, options = {}) {
-  const nextView = ["today", "approval", "ops", "logs"].includes(view) ? view : "today";
+  const nextView = ["today", "approval", "team", "ops", "logs"].includes(view) ? view : "today";
   activeAdminView = nextView;
   document.body.dataset.adminView = nextView;
   els.adminViewButtons.forEach((button) => {

@@ -12918,15 +12918,13 @@ td {
 .admin-app-body #exportBtn,
 .admin-app-body .summary-grid,
 .admin-app-body .admin-workspace-tab[data-admin-view="ranking"],
-.admin-app-body .admin-workspace-tab[data-admin-view="team"],
 .admin-app-body [data-admin-section="ranking"],
-.admin-app-body [data-admin-section="team"],
 .admin-app-body .admin-test-tools {
   display: none !important;
 }
 
 .admin-app-body .panel.admin-workspace-nav {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
 }
 
 .admin-app-body[data-admin-view="logs"] .admin-test-tools {
@@ -13001,12 +12999,12 @@ td {
 
 @media (max-width: 860px) {
   .admin-app-body .panel.admin-workspace-nav {
-    grid-template-columns: repeat(4, minmax(132px, 1fr)) !important;
+    grid-template-columns: repeat(5, minmax(132px, 1fr)) !important;
   }
 }
 
 @media (max-width: 520px) {
   .admin-app-body .panel.admin-workspace-nav {
-    grid-template-columns: repeat(4, minmax(136px, 136px)) !important;
+    grid-template-columns: repeat(5, minmax(136px, 136px)) !important;
   }
 }

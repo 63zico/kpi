@@ -475,7 +475,7 @@ function updateSyncStatus(saveText = "준비 중") {
   const storageScope = storeId && storeId !== "main" ? "로그인 매장" : "기본 저장소";
   if (fields.syncStorageScope) fields.syncStorageScope.textContent = storageScope;
   if (fields.syncSaveState) fields.syncSaveState.textContent = saveText;
-  if (fields.syncAppVersion) fields.syncAppVersion.textContent = "20260603-usage-metrics-1";
+  if (fields.syncAppVersion) fields.syncAppVersion.textContent = "20260603-team-review-restore-1";
   renderLaunchChecklist();
 }
 
