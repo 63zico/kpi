@@ -277,7 +277,7 @@ function init() {
   setLogTab(activeLogTab);
   setAdminView(activeAdminView);
   trackAdminEvent("link_opened", { page: "admin", view: activeAdminView });
-  if (importLegacyStaffFromDefaultStore() || importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries()) saveState();
+  if (importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries()) saveState();
   renderAdminOnboarding();
   render();
   syncCloudState();
@@ -389,7 +389,7 @@ async function syncCloudState() {
       analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, cloudState.analyticsEvents),
     };
     staff = normalizeStaff(state.staff);
-    const repaired = importLegacyStaffFromDefaultStore() || importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries();
+    const repaired = importLegacySelfChecksFromDefaultStore() || repairApprovedSelfCheckEntries();
     localStorage.setItem(appStorageKey(), JSON.stringify(state));
     if (repaired) saveState();
     els.referenceMonth.value = state.referenceMonth || els.referenceMonth.value;
@@ -433,25 +433,6 @@ function normalizeStoreSettings(settings) {
     performanceItems,
     rankingSettings: normalizeRankingSettings(settings?.rankingSettings, performanceItems),
   };
-}
-
-function importLegacyStaffFromDefaultStore() {
-  const currentKey = appStorageKey();
-  if (currentKey === storageKey) return false;
-  let legacyState;
-  try {
-    legacyState = JSON.parse(localStorage.getItem(storageKey) || "null");
-  } catch {
-    legacyState = null;
-  }
-  const legacyStaff = normalizeStaff(legacyState?.staff);
-  const currentIds = new Set(staff.map((person) => person.id));
-  const missingStaff = legacyStaff.filter((person) => person.active !== false && !currentIds.has(person.id));
-  if (!missingStaff.length) return false;
-
-  staff = normalizeStaff([...staff, ...missingStaff]);
-  state.staff = staff;
-  return true;
 }
 
 function importLegacySelfChecksFromDefaultStore() {

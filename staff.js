@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-staff-safe-merge-1";
+const employeeAppVersion = "20260603-no-legacy-staff-import-1";
 const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {
@@ -111,7 +111,6 @@ async function syncCloudState() {
     setSyncStatus("클라우드 목록 확인 중");
     const cloudState = await withTimeout(loadStateFromCloud(), cloudStaffTimeoutMs);
     if (!cloudState) {
-      importLegacyStaffFromDefaultStore({ save: false });
       ensureStaffAccessTokens({ save: false });
       state.staff = staff;
       localStorage.setItem(appStorageKey(), JSON.stringify(state));
@@ -123,16 +122,15 @@ async function syncCloudState() {
     state = {
       ...state,
       ...cloudState,
-      staff: mergeStaffLists(cloudStaff, localStaff, { prefer: "cloud" }),
+      staff: cloudStaff.length ? cloudStaff : localStaff,
     };
     staff = normalizeStaff(state.staff);
-    const importedLegacy = importLegacyStaffFromDefaultStore({ save: false });
     const addedTokens = ensureStaffAccessTokens({ save: false });
     state.staff = staff;
     localStorage.setItem(appStorageKey(), JSON.stringify(state));
     renderStaffEditor();
     setSyncStatus("클라우드 연동됨");
-    if (importedLegacy || addedTokens || staff.length !== cloudStaff.length) saveState();
+    if (addedTokens) saveState();
   } catch (error) {
     console.warn(error);
     setSyncStatus("로컬 목록 사용 중");
@@ -217,28 +215,6 @@ function ensureStaffAccessTokens(options = {}) {
     if (shouldSave) saveState();
   }
   return changed;
-}
-
-function importLegacyStaffFromDefaultStore(options = {}) {
-  const shouldSave = options.save !== false;
-  const currentKey = appStorageKey();
-  if (currentKey === storageKey) return false;
-  let legacyState;
-  try {
-    legacyState = JSON.parse(localStorage.getItem(storageKey) || "null");
-  } catch {
-    legacyState = null;
-  }
-  const legacyStaff = normalizeStaff(legacyState?.staff, { fallbackToDefault: false });
-  const currentIds = new Set(staff.map((person) => person.id));
-  const missingStaff = legacyStaff.filter((person) => person.active !== false && !currentIds.has(person.id));
-  if (!missingStaff.length) return false;
-
-  staff = mergeStaffLists(staff, missingStaff, { prefer: "local" });
-  state.staff = staff;
-  localStorage.setItem(appStorageKey(), JSON.stringify(state));
-  if (shouldSave) saveState();
-  return true;
 }
 
 function renderStaffEditor() {
