@@ -3,6 +3,8 @@ const langStorageKey = "levelove-employee-lang";
 const draftStorageKey = "levelove-employee-quest-drafts-v1";
 const levelSeenStorageKey = "levelove-employee-level-seen-v1";
 const teamReviewTarget = 30;
+const cloudReadTimeoutMs = 6000;
+const cloudCriticalSaveTimeoutMs = 12000;
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
 const levelXpThresholds = [
   0, 50, 160, 300, 460, 660, 870, 1100, 1360, 1630,
@@ -1043,11 +1045,11 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   state.staff = staff;
   state.selfChecks = state.selfChecks || [];
   state.analyticsEvents = normalizeAnalyticsEvents(state.analyticsEvents);
-  return saveEmployeeStateEverywhere(state);
+  return saveEmployeeStateEverywhere(state, options);
 }
 
 function trackEmployeeEvent(type, detail = {}) {
@@ -1074,26 +1076,28 @@ function trackTaskCompleted(taskId, detail = {}) {
   });
 }
 
-function saveEmployeeStateEverywhere(nextState) {
+function saveEmployeeStateEverywhere(nextState, options = {}) {
   localStorage.setItem(appStorageKey(), JSON.stringify(nextState));
-  if (typeof cloudEnabled !== "function" || !cloudEnabled()) return Promise.resolve(false);
+  if (typeof cloudEnabled !== "function" || !cloudEnabled()) return Promise.resolve(true);
   const person = selectedStaff();
   const date = els.date.value;
   const saveRevision = ++cloudSaveRevision;
+  const timeoutMs = options.critical ? cloudCriticalSaveTimeoutMs : cloudReadTimeoutMs;
   const snapshot = {
     ...nextState,
     selfChecks: [...(nextState.selfChecks || [])],
   };
 
-  return withTimeout(loadStateFromCloud(), 2500)
+  return withTimeout(loadStateFromCloud(), timeoutMs)
     .then((cloudState) => {
       if (saveRevision !== cloudSaveRevision) return false;
       const mergedState = mergeEmployeeStateForCloud(cloudState, snapshot, person, date);
       localStorage.setItem(appStorageKey(), JSON.stringify(mergedState));
-      return saveStateToCloud(mergedState);
+      return saveStateToCloud(mergedState).then(() => true);
     })
     .catch((error) => {
       console.warn(error);
+      return false;
     });
 }
 
@@ -1150,7 +1154,7 @@ function selfCheckVersionTime(entry) {
 
 async function syncCloudState() {
   try {
-    const cloudState = await withTimeout(loadStateFromCloud(), 2500);
+    const cloudState = await withTimeout(loadStateFromCloud(), cloudReadTimeoutMs);
     if (!cloudState) {
       renderStaffOptions();
       return false;
@@ -1727,7 +1731,7 @@ async function saveProfilePhoto(staffId, dataUrl) {
   if (typeof cloudEnabled !== "function" || !cloudEnabled()) {
     return;
   }
-  const cloudState = await withTimeout(loadStateFromCloud(), 2500).catch(() => null);
+  const cloudState = await withTimeout(loadStateFromCloud(), cloudReadTimeoutMs).catch(() => null);
   const nextCloudState = {
     ...state,
     ...(cloudState || {}),
@@ -1852,6 +1856,10 @@ function saveDraft({ showMessage = false } = {}) {
       ? t("draftSavedStatus")
       : t("draftLiveStatus");
   }
+}
+
+function setDraftStatus(message) {
+  if (els.draftStatus) els.draftStatus.textContent = message;
 }
 
 async function saveLiveSelfCheck() {
@@ -2706,6 +2714,8 @@ async function submitSelfCheck(event) {
   };
 
   saveDraft({ showMessage: false });
+  const previousSelfChecks = cloneStateList(state.selfChecks);
+  const previousAnalyticsEvents = cloneStateList(state.analyticsEvents);
   const existingLive = (state.selfChecks || []).find((item) => (
     item.date === date && item.staffId === person.id && item.status === "live"
   ));
@@ -2740,7 +2750,19 @@ async function submitSelfCheck(event) {
     date,
     dedupeKey: `${date}:${person.id}:employee_submit`,
   });
-  await saveState();
+  const saved = await saveState({ critical: true });
+  if (!saved) {
+    state.selfChecks = previousSelfChecks;
+    state.analyticsEvents = previousAnalyticsEvents;
+    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    const message = currentLang === "vi"
+      ? "Chưa đồng bộ được với màn hình quản lý. Kiểm tra mạng rồi gửi lại."
+      : "매니저 화면에 아직 동기화되지 않았어요. 인터넷 연결을 확인하고 다시 제출해주세요.";
+    setDraftStatus(message);
+    renderHistory();
+    alert(message);
+    return;
+  }
   lastSubmitFeedback = {
     date,
     staffId: person.id,
@@ -2755,10 +2777,18 @@ async function submitSelfCheck(event) {
   setEmployeeTab("home", { scroll: false });
 }
 
+function cloneStateList(list) {
+  try {
+    return JSON.parse(JSON.stringify(Array.isArray(list) ? list : []));
+  } catch {
+    return Array.isArray(list) ? list.map((item) => ({ ...item })) : [];
+  }
+}
+
 async function refreshCurrentSelfCheckFromCloud(person, date) {
   if (typeof cloudEnabled !== "function" || !cloudEnabled() || !person || !date) return;
   try {
-    const cloudState = await withTimeout(loadStateFromCloud(), 2500);
+    const cloudState = await withTimeout(loadStateFromCloud(), cloudReadTimeoutMs);
     if (!cloudState) return;
     const cloudChecks = Array.isArray(cloudState.selfChecks) ? cloudState.selfChecks : [];
     const currentCloudChecks = cloudChecks.filter((entry) => entry.date === date && entry.staffId === person.id);
