@@ -9642,6 +9642,7 @@ td {
 }
 
 .home-checkin-cta.is-attention,
+.mini-tab-jump.is-attention,
 .submit-self-check.is-attention {
   animation: submitAttentionPulse 0.65s ease-in-out 2;
 }

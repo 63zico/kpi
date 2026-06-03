@@ -1695,6 +1695,18 @@ function guideMoodBeforeCheckin() {
   }, 80);
 }
 
+function focusCheckinActionButton() {
+  const button = firstVisibleElement([
+    els.employeeTabContent?.querySelector("[data-checkin-action]:not(:disabled)"),
+  ]);
+  if (!button) return;
+  window.setTimeout(() => {
+    button.scrollIntoView({ behavior: "smooth", block: "center" });
+    button.classList.add("is-attention");
+    window.setTimeout(() => button.classList.remove("is-attention"), 1300);
+  }, 120);
+}
+
 function markGoalConfirmed() {
   if (!els.goal) return;
   const wasChecked = els.goal.checked;
@@ -1710,13 +1722,21 @@ function handleCheckinMoodSelect(value) {
   showCheckinMoodToast();
   if (pendingCheckinAfterMood && !els.attendance?.checked) {
     pendingCheckinAfterMood = false;
-    completeAttendanceCheckin();
+    updateQuestProgress();
+    saveDraft({ showMessage: false });
+    saveLiveSelfCheck();
+    setEmployeeTab("checkin", { scroll: false });
+    setDraftStatus(employeeCopy().moodReady);
+    focusCheckinActionButton();
     return;
   }
   pendingCheckinAfterMood = false;
   updateQuestProgress();
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
+  setEmployeeTab("checkin", { scroll: false });
+  setDraftStatus(employeeCopy().moodReady);
+  focusCheckinActionButton();
 }
 
 function handleHelpChange() {
@@ -3160,6 +3180,9 @@ function employeeCopy() {
       startDone: "Sẵn sàng bắt đầu",
       goalCheck: "Mở mục tiêu",
       checkinAction: "Bắt đầu 🚀",
+      pickMoodFirst: "Chọn tâm trạng trước",
+      pickMoodHelp: "Chọn một tâm trạng ở trên rồi bấm bắt đầu.",
+      moodReady: "Đã chọn tâm trạng. Bấm bắt đầu để mở mục tiêu hôm nay.",
       workStarted: "Nhiệm vụ đã bắt đầu",
       goalMeta: "Mở bản đồ hôm nay",
       firstTodo: "Nhiệm vụ đầu tiên",
@@ -3279,8 +3302,11 @@ function employeeCopy() {
     scheduledStaffRole: "근무 예정 직원",
     startDone: "시작 준비 완료",
     goalCheck: "목표 열기",
-    checkinAction: "모험 시작 🚀",
-    workStarted: "오늘 퀘스트 시작!",
+      checkinAction: "모험 시작 🚀",
+      pickMoodFirst: "기분 먼저 선택",
+      pickMoodHelp: "위에서 오늘 기분을 고르면 모험 시작 버튼이 열려요.",
+      moodReady: "기분 선택 완료. 모험 시작을 누르면 목표맵이 열려요.",
+      workStarted: "오늘 퀘스트 시작!",
     goalMeta: "오늘 맵 열기",
     firstTodo: "첫 번째 퀘스트",
     noRecordYet: "기록 전",
@@ -3687,6 +3713,9 @@ function renderEmployeeTabContent(tab, done, person) {
   const checkinMoodCard = renderCheckinMoodCard();
   const checkinGoalMapCard = renderCheckinGoalMapCard(hasGoal);
   const checkinReadyCard = renderCheckinReadyCard(hasAttendance, hasGoal);
+  const checkinNeedsMood = !hasAttendance && !checkinMood;
+  const checkinActionLabel = checkinNeedsMood ? copy.pickMoodFirst : copy.checkinAction;
+  const checkinActionHelp = checkinNeedsMood ? copy.pickMoodHelp : checkinStatusText;
 
   const templates = {
     home: `
@@ -3741,8 +3770,8 @@ function renderEmployeeTabContent(tab, done, person) {
           <span class="mini-label">${copy.firstTodo}</span>
           <strong>${copy.checkinPageReadyTitle}</strong>
           <p>${copy.checkinPageReadyText}</p>
-          <button class="mini-tab-jump primary" type="button" data-checkin-action>${copy.checkinAction}</button>
-          <small>${checkinStatusText}</small>
+          <button class="mini-tab-jump primary" type="button" data-checkin-action ${checkinNeedsMood ? "disabled" : ""}>${checkinActionLabel}</button>
+          <small>${checkinActionHelp}</small>
         </div>
       ` : checkinGoalMapCard}
       ${checkinReadyCard}
