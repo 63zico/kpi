@@ -843,7 +843,9 @@ function init() {
   els.praiseSkipButton?.addEventListener("click", skipPraise);
   els.saveDraftButton?.addEventListener("click", () => saveDraft({ showMessage: true }));
   els.form.addEventListener("submit", submitSelfCheck);
+  els.form.addEventListener("click", handleVisibleSubmitClick);
   els.form.addEventListener("click", handleRealtimeAdjust);
+  els.form.addEventListener("pointerdown", handleVisibleSubmitPointerDown);
   els.form.addEventListener("change", (event) => {
     syncLegacyPerformanceFields();
     updateSpecialCleanLastStatus();
@@ -867,9 +869,12 @@ function init() {
       submitCheckoutFromMobileAction(event, submitButton);
       return;
     }
-    const guardInput = event.target.closest("[data-checkout-guard]");
+    const guardInput = event.target.closest("[data-checkout-guard]")
+      || event.target.closest("label")?.querySelector("[data-checkout-guard]");
     if (guardInput) {
+      event.preventDefault();
       completeCheckoutGuard();
+      focusCheckoutSubmitButton();
       return;
     }
     const checkinButton = event.target.closest("[data-checkin-action]");
@@ -955,6 +960,7 @@ function init() {
 function submitCheckoutFromMobileAction(event, button) {
   event?.preventDefault?.();
   event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
   if (button?.disabled || checkoutSubmitLocked) return;
   checkoutSubmitLocked = true;
   if (button) {
@@ -979,6 +985,19 @@ function submitCheckoutFromMobileAction(event, button) {
         button.removeAttribute("aria-busy");
       }
     });
+}
+
+function handleVisibleSubmitClick(event) {
+  const button = event.target.closest(".submit-self-check");
+  if (!button) return;
+  submitCheckoutFromMobileAction(event, button);
+}
+
+function handleVisibleSubmitPointerDown(event) {
+  if (event.pointerType === "mouse") return;
+  const button = event.target.closest(".submit-self-check");
+  if (!button) return;
+  submitCheckoutFromMobileAction(event, button);
 }
 
 function completePerformanceMission(button) {
@@ -1596,6 +1615,33 @@ function completeCheckoutGuard(options = {}) {
     saveDraft({ showMessage: false });
     saveLiveSelfCheck();
   }
+  if (!quiet) {
+    setDraftStatus(currentLang === "vi"
+      ? "Đã xong kiểm tra cuối ca. Bấm nút gửi kết ca bên dưới để gửi cho quản lý."
+      : "마감 가드 완료. 아래 퇴근 제출 버튼을 눌러 매니저에게 보내주세요.");
+  }
+}
+
+function focusCheckoutSubmitButton() {
+  const button = firstVisibleElement([
+    els.employeeTabContent?.querySelector("[data-submit-checkout]:not(:disabled)"),
+    document.querySelector(".submit-self-check:not(:disabled)"),
+  ]);
+  if (!button) return;
+  window.setTimeout(() => {
+    button.scrollIntoView({ behavior: "smooth", block: "center" });
+    button.classList.add("is-attention");
+    window.setTimeout(() => button.classList.remove("is-attention"), 1300);
+  }, 80);
+}
+
+function firstVisibleElement(nodes) {
+  return nodes.find((node) => {
+    if (!node) return false;
+    const rect = node.getBoundingClientRect();
+    const style = window.getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  });
 }
 
 function completeAttendanceCheckin() {
