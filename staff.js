@@ -1,6 +1,7 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-mobile-submit-sync-1";
+const employeeAppVersion = "20260603-staff-safe-merge-1";
+const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {
   return window.LeveloveAuth?.stateStorageKey?.(storageKey) || storageKey;
@@ -35,8 +36,6 @@ init();
 function init() {
   const authResult = window.LeveloveAuth?.requireRole?.(["owner", "admin", "manager"]);
   if (authResult && !authResult.ok) return;
-  importLegacyStaffFromDefaultStore();
-  ensureStaffAccessTokens();
   renderStaffEditor();
   setSyncStatus("로컬 목록 표시 중");
   syncCloudState();
@@ -81,7 +80,7 @@ function saveState() {
   state.staff = staff;
   localStorage.setItem(appStorageKey(), JSON.stringify(state));
   setSyncStatus("저장 중...");
-  return saveStateToCloud(state)
+  return saveStaffStateToCloud()
     .then(() => setSyncStatus("클라우드 저장됨"))
     .catch((error) => {
       console.warn(error);
@@ -89,21 +88,51 @@ function saveState() {
     });
 }
 
+async function saveStaffStateToCloud() {
+  const localStaff = normalizeStaff(staff, { fallbackToDefault: false });
+  state.staff = localStaff;
+  localStorage.setItem(appStorageKey(), JSON.stringify(state));
+  if (typeof cloudEnabled !== "function" || !cloudEnabled()) return true;
+
+  const cloudState = await withTimeout(loadStateFromCloud(), cloudStaffTimeoutMs).catch(() => null);
+  const nextState = {
+    ...(cloudState || state),
+    staff: mergeStaffLists(cloudState?.staff, localStaff, { prefer: "local" }),
+  };
+  state = nextState;
+  staff = normalizeStaff(nextState.staff);
+  localStorage.setItem(appStorageKey(), JSON.stringify(state));
+  await saveStateToCloud(nextState);
+  return true;
+}
+
 async function syncCloudState() {
   try {
     setSyncStatus("클라우드 목록 확인 중");
-    const cloudState = await withTimeout(loadStateFromCloud(), 2500);
+    const cloudState = await withTimeout(loadStateFromCloud(), cloudStaffTimeoutMs);
     if (!cloudState) {
+      importLegacyStaffFromDefaultStore({ save: false });
+      ensureStaffAccessTokens({ save: false });
+      state.staff = staff;
+      localStorage.setItem(appStorageKey(), JSON.stringify(state));
       setSyncStatus("로컬 목록 사용 중");
       return;
     }
-    state = { ...state, ...cloudState };
+    const localStaff = normalizeStaff(staff, { fallbackToDefault: false });
+    const cloudStaff = normalizeStaff(cloudState.staff, { fallbackToDefault: false });
+    state = {
+      ...state,
+      ...cloudState,
+      staff: mergeStaffLists(cloudStaff, localStaff, { prefer: "cloud" }),
+    };
     staff = normalizeStaff(state.staff);
-    importLegacyStaffFromDefaultStore();
-    ensureStaffAccessTokens();
+    const importedLegacy = importLegacyStaffFromDefaultStore({ save: false });
+    const addedTokens = ensureStaffAccessTokens({ save: false });
+    state.staff = staff;
     localStorage.setItem(appStorageKey(), JSON.stringify(state));
     renderStaffEditor();
     setSyncStatus("클라우드 연동됨");
+    if (importedLegacy || addedTokens || staff.length !== cloudStaff.length) saveState();
   } catch (error) {
     console.warn(error);
     setSyncStatus("로컬 목록 사용 중");
@@ -119,8 +148,9 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-function normalizeStaff(savedStaff) {
-  const source = Array.isArray(savedStaff) && savedStaff.length ? savedStaff : defaultStaff;
+function normalizeStaff(savedStaff, options = {}) {
+  const fallbackToDefault = options.fallbackToDefault !== false;
+  const source = Array.isArray(savedStaff) && savedStaff.length ? savedStaff : (fallbackToDefault ? defaultStaff : []);
   return source.map((person, index) => {
     const role = normalizeRole(person.role || person.type);
     return {
@@ -137,7 +167,44 @@ function normalizeStaff(savedStaff) {
   });
 }
 
-function ensureStaffAccessTokens() {
+function mergeStaffLists(baseStaff, incomingStaff, options = {}) {
+  const prefer = options.prefer || "local";
+  const base = normalizeStaff(baseStaff, { fallbackToDefault: false });
+  const incoming = normalizeStaff(incomingStaff, { fallbackToDefault: false });
+  const map = new Map(base.map((person) => [person.id, person]));
+  incoming.forEach((person) => {
+    const previous = map.get(person.id);
+    if (!previous) {
+      map.set(person.id, person);
+      return;
+    }
+    map.set(person.id, prefer === "cloud"
+      ? {
+        ...person,
+        ...previous,
+        accessToken: previous.accessToken || person.accessToken,
+      }
+      : {
+        ...previous,
+        ...person,
+        accessToken: person.accessToken || previous.accessToken,
+      });
+  });
+  return [...map.values()].sort(sortStaffForStorage);
+}
+
+function sortStaffForStorage(a, b) {
+  const groupOrder = { "hall-manager": 0, hall: 1, "hall-part": 2, "kitchen-manager": 3, kitchen: 4, "kitchen-part": 5, marketer: 6 };
+  const aAdded = isAddedStaff(a);
+  const bAdded = isAddedStaff(b);
+  if (aAdded !== bAdded) return aAdded ? 1 : -1;
+  const groupDiff = (groupOrder[a.role] ?? 9) - (groupOrder[b.role] ?? 9);
+  if (groupDiff) return groupDiff;
+  return String(a.createdAt || a.id).localeCompare(String(b.createdAt || b.id));
+}
+
+function ensureStaffAccessTokens(options = {}) {
+  const shouldSave = options.save !== false;
   let changed = false;
   staff = staff.map((person) => {
     if (person.accessToken) return person;
@@ -147,11 +214,13 @@ function ensureStaffAccessTokens() {
   if (changed) {
     state.staff = staff;
     localStorage.setItem(appStorageKey(), JSON.stringify(state));
-    saveStateToCloud(state).catch((error) => console.warn(error));
+    if (shouldSave) saveState();
   }
+  return changed;
 }
 
-function importLegacyStaffFromDefaultStore() {
+function importLegacyStaffFromDefaultStore(options = {}) {
+  const shouldSave = options.save !== false;
   const currentKey = appStorageKey();
   if (currentKey === storageKey) return false;
   let legacyState;
@@ -160,15 +229,15 @@ function importLegacyStaffFromDefaultStore() {
   } catch {
     legacyState = null;
   }
-  const legacyStaff = normalizeStaff(legacyState?.staff);
+  const legacyStaff = normalizeStaff(legacyState?.staff, { fallbackToDefault: false });
   const currentIds = new Set(staff.map((person) => person.id));
   const missingStaff = legacyStaff.filter((person) => person.active !== false && !currentIds.has(person.id));
   if (!missingStaff.length) return false;
 
-  staff = normalizeStaff([...staff, ...missingStaff]);
+  staff = mergeStaffLists(staff, missingStaff, { prefer: "local" });
   state.staff = staff;
   localStorage.setItem(appStorageKey(), JSON.stringify(state));
-  saveStateToCloud(state).catch((error) => console.warn(error));
+  if (shouldSave) saveState();
   return true;
 }
 
