@@ -24,6 +24,8 @@ const leveloveLastTestKey = "levelove-last-test-store-v1";
       stores: Array.isArray(value?.stores) ? value.stores : [],
       users: Array.isArray(value?.users) ? value.users : [],
       invites: Array.isArray(value?.invites) ? value.invites : [],
+      canonicalStoreId: String(value?.canonicalStoreId || ""),
+      cleanupVersion: String(value?.cleanupVersion || ""),
       updatedAt: value?.updatedAt || "",
     };
   }
@@ -118,6 +120,16 @@ const leveloveLastTestKey = "levelove-last-test-store-v1";
         authHydrated = true;
         if (!cloudState) return false;
         const localState = loadAuthState();
+        if (cloudState.cleanupVersion && cloudState.canonicalStoreId) {
+          const cleaned = normalizeAuthState(cloudState);
+          const before = JSON.stringify(localState);
+          const after = JSON.stringify(cleaned);
+          if (before !== after) {
+            localStorage.setItem(leveloveAuthStorageKey, JSON.stringify(cleaned));
+            return true;
+          }
+          return false;
+        }
         const merged = mergeAuthStates(localState, cloudState);
         const before = JSON.stringify(localState);
         const after = JSON.stringify(merged);

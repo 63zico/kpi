@@ -1038,7 +1038,7 @@ function loadState() {
     return {
       ...fallback,
       ...saved,
-      storeSettings: normalizeStoreSettings(saved?.storeSettings, { allowUrlOverrides: true }),
+      storeSettings: normalizeStoreSettings(saved?.storeSettings),
       selfChecks: saved?.selfChecks || [],
       announcements: saved?.announcements || [],
       analyticsEvents: normalizeAnalyticsEvents(saved?.analyticsEvents),
@@ -1167,7 +1167,7 @@ async function syncCloudState() {
     state = {
       ...state,
       ...cloudState,
-      storeSettings: normalizeStoreSettings(cloudState.storeSettings, { allowUrlOverrides: false }),
+      storeSettings: normalizeStoreSettings(cloudState.storeSettings),
       selfChecks: cloudState.selfChecks || [],
       announcements: Array.isArray(cloudState.announcements) ? cloudState.announcements : (state.announcements || []),
       analyticsEvents: mergeAnalyticsEvents(localAnalyticsEvents, cloudState.analyticsEvents),
@@ -4863,7 +4863,7 @@ function configuredRankingSettings() {
 }
 
 function rankingVisibilityIsPrivate() {
-  return normalizeStoreSettings(state.storeSettings, { allowUrlOverrides: false }).rankingVisibility === "private";
+  return normalizeStoreSettings(state.storeSettings).rankingVisibility === "private";
 }
 
 function rankingMissionIsActive(ranking) {
@@ -5453,17 +5453,7 @@ function lockedStaffFromUrl() {
 
 function normalizeStaff(savedStaff) {
   const source = Array.isArray(savedStaff) && savedStaff.length ? savedStaff : defaultStaff;
-  const urlStaff = urlStaffListOverride();
-  const mergedSource = [...source];
-  urlStaff.forEach((person) => {
-    const index = mergedSource.findIndex((item) => item.id === person.id);
-    if (index >= 0) {
-      mergedSource[index] = { ...mergedSource[index], ...person, accessToken: mergedSource[index].accessToken || person.accessToken || "" };
-    } else {
-      mergedSource.push(person);
-    }
-  });
-  const normalized = mergedSource.map((person, index) => {
+  const normalized = source.map((person, index) => {
     const role = normalizeRole(person.role || person.type);
     return {
       ...person,
@@ -5481,81 +5471,20 @@ function normalizeStaff(savedStaff) {
   return normalized.some((person) => person.active !== false) ? normalized : defaultStaff;
 }
 
-function urlStaffListOverride() {
-  const raw = new URLSearchParams(window.location.search).get("staffList");
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((person, index) => {
-        const role = normalizeRole(person?.role || person?.type);
-        const id = String(person?.id || "").trim();
-        if (!id || isManagerRole(role)) return null;
-        return {
-          id,
-          name: String(person?.name || "").trim() || fallbackStaffName(role, index),
-          role,
-          workDays: normalizeWorkDays(person?.workDays),
-          offDays: normalizeOffDays(person?.offDays),
-          active: person?.active !== false,
-          accessToken: String(person?.accessToken || ""),
-        };
-      })
-      .filter(Boolean);
-  } catch (error) {
-    console.warn("Invalid staff list in link", error);
-    return [];
-  }
-}
-
-function normalizeStoreSettings(settings, options = {}) {
-  const allowUrlOverrides = options.allowUrlOverrides !== false;
-  const urlPerformanceItems = allowUrlOverrides ? urlPerformanceItemsOverride() : null;
-  const performanceItems = normalizePerformanceItems(urlPerformanceItems || settings?.performanceItems);
-  const urlRankingSettings = allowUrlOverrides ? urlRankingSettingsOverride() : null;
-  const urlTeamChallengeSettings = allowUrlOverrides ? urlJsonOverride("team") : null;
-  const urlOperationPoints = allowUrlOverrides ? urlJsonOverride("ops") : null;
-  const urlDailyOperationPoints = allowUrlOverrides ? urlJsonOverride("dailyOps") : null;
-  const urlDailyOperationDate = allowUrlOverrides ? (new URLSearchParams(window.location.search).get("dailyDate") || "") : "";
+function normalizeStoreSettings(settings) {
+  const performanceItems = normalizePerformanceItems(settings?.performanceItems);
   return {
     ...defaultStoreSettings,
     ...(settings || {}),
-    operationPoints: normalizeOperationPoints(urlOperationPoints || settings?.operationPoints),
-    dailyOperationPoints: normalizeOptionalOperationPoints(urlDailyOperationPoints || settings?.dailyOperationPoints),
-    dailyOperationDate: String(urlDailyOperationDate || settings?.dailyOperationDate || "").trim(),
+    operationPoints: normalizeOperationPoints(settings?.operationPoints),
+    dailyOperationPoints: normalizeOptionalOperationPoints(settings?.dailyOperationPoints),
+    dailyOperationDate: String(settings?.dailyOperationDate || "").trim(),
     customQuests: normalizeCustomQuests(settings?.customQuests),
     questSettings: normalizeQuestSettings(settings?.questSettings),
     performanceItems,
-    rankingSettings: normalizeRankingSettings(urlRankingSettings || settings?.rankingSettings, performanceItems),
-    teamChallengeSettings: normalizeTeamChallengeSettings(urlTeamChallengeSettings || settings?.teamChallengeSettings),
+    rankingSettings: normalizeRankingSettings(settings?.rankingSettings, performanceItems),
+    teamChallengeSettings: normalizeTeamChallengeSettings(settings?.teamChallengeSettings),
   };
-}
-
-function urlPerformanceItemsOverride() {
-  const raw = new URLSearchParams(window.location.search).get("perf");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    console.warn("Invalid performance settings in link", error);
-    return null;
-  }
-}
-
-function urlRankingSettingsOverride() {
-  return urlJsonOverride("rank", "Invalid ranking settings in link");
-}
-
-function urlJsonOverride(param, warning = "Invalid URL settings") {
-  const raw = new URLSearchParams(window.location.search).get(param);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    console.warn(warning, error);
-    return null;
-  }
 }
 
 function normalizePerformanceItems(items) {
