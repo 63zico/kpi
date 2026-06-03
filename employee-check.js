@@ -972,6 +972,15 @@ function submitCheckoutFromMobileAction(event, button) {
   submitSelfCheck({ preventDefault() {} })
     .catch((error) => {
       console.warn(error);
+      if (hasPendingSelfCheckForCurrentStaff()) {
+        setDraftStatus(t("draftSubmittedStatus"));
+        try {
+          setEmployeeTab("home", { scroll: false });
+        } catch (tabError) {
+          console.warn(tabError);
+        }
+        return;
+      }
       const message = currentLang === "vi"
         ? "Chưa gửi được. Vui lòng bấm lại một lần nữa."
         : "아직 제출되지 않았어요. 한 번만 다시 눌러주세요.";
@@ -998,6 +1007,15 @@ function handleVisibleSubmitPointerDown(event) {
   const button = event.target.closest(".submit-self-check");
   if (!button) return;
   submitCheckoutFromMobileAction(event, button);
+}
+
+function hasPendingSelfCheckForCurrentStaff() {
+  const person = selectedStaff();
+  const date = els.date?.value || "";
+  if (!person || !date) return false;
+  return (state.selfChecks || []).some((entry) => (
+    entry.date === date && entry.staffId === person.id && entry.status === "pending"
+  ));
 }
 
 function completePerformanceMission(button) {
@@ -2953,12 +2971,17 @@ async function submitSelfCheck(event) {
     time: checkoutTime,
     createdAt: Date.now(),
   };
-  clearDraft(date, person.id);
-  resetForm(date);
-  renderHistory();
-  renderRankings();
-  showHatiPraise("checkout");
-  setEmployeeTab("home", { scroll: false });
+  try {
+    clearDraft(date, person.id);
+    resetForm(date);
+    renderHistory();
+    renderRankings();
+    showHatiPraise("checkout");
+    setEmployeeTab("home", { scroll: false });
+  } catch (error) {
+    console.warn(error);
+    setDraftStatus(t("draftSubmittedStatus"));
+  }
 }
 
 function cloneStateList(list) {
