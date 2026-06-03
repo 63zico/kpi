@@ -688,6 +688,7 @@ let lastSubmitFeedback = null;
 let attendancePraiseKey = "";
 let lastRenderedXp = null;
 let activeLevelUpNotice = null;
+let checkoutSubmitLocked = false;
 let cloudSaveRevision = 0;
 let cloudStaffLoaded = false;
 let cloudSyncPromise = Promise.resolve(false);
@@ -863,9 +864,7 @@ function init() {
     }
     const submitButton = event.target.closest("[data-submit-checkout]");
     if (submitButton) {
-      event.preventDefault();
-      completeCheckoutGuard();
-      requestCheckoutSubmit();
+      submitCheckoutFromMobileAction(event, submitButton);
       return;
     }
     const guardInput = event.target.closest("[data-checkout-guard]");
@@ -919,6 +918,11 @@ function init() {
     if (!button) return;
     setEmployeeTab(button.dataset.jumpTab);
   });
+  els.employeeTabContent?.addEventListener("pointerdown", (event) => {
+    const submitButton = event.target.closest("[data-submit-checkout]");
+    if (!submitButton || event.pointerType === "mouse") return;
+    submitCheckoutFromMobileAction(event, submitButton);
+  });
   els.employeeTabContent?.addEventListener("change", handleProfilePhotoChange);
   els.employeeTabContent?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -948,12 +952,24 @@ function init() {
   });
 }
 
-function requestCheckoutSubmit() {
-  if (typeof els.form.requestSubmit === "function") {
-    els.form.requestSubmit();
-    return;
+function submitCheckoutFromMobileAction(event, button) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  if (button?.disabled || checkoutSubmitLocked) return;
+  checkoutSubmitLocked = true;
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
   }
-  els.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  completeCheckoutGuard();
+  submitSelfCheck({ preventDefault() {} })
+    .finally(() => {
+      checkoutSubmitLocked = false;
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+      }
+    });
 }
 
 function completePerformanceMission(button) {
