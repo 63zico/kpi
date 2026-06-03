@@ -2,6 +2,7 @@ const leveloveAuthStorageKey = "levelove-auth-v1";
 const leveloveAuthSessionKey = "levelove-auth-session-v1";
 const leveloveAuthCloudId = "auth:levelove";
 const leveloveLastTestKey = "levelove-last-test-store-v1";
+const leveloveDefaultStoreId = "store_mpr0b4hw_ru2t0xt";
 
 (function initLeveloveAuth() {
   const publicPages = ["auth.html", "index.html", "staff.html", "levelove-staff-9c4f2a7.html"];
@@ -381,7 +382,12 @@ const leveloveLastTestKey = "levelove-last-test-store-v1";
   }
 
   function activeStoreId() {
-    return storeIdFromUrl() || session()?.storeId || "main";
+    const explicitStoreId = storeIdFromUrl();
+    if (explicitStoreId) return explicitStoreId;
+    const activeSession = session();
+    const authState = loadAuthState();
+    if (authState.cleanupVersion && authState.canonicalStoreId) return authState.canonicalStoreId;
+    return authState.canonicalStoreId || leveloveDefaultStoreId || activeSession?.storeId || "main";
   }
 
   function storeStateId() {

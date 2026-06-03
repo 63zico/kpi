@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-loginless-manager-1";
+const employeeAppVersion = "20260603-staff-restore-1";
 const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {
@@ -20,6 +20,7 @@ const defaultStaff = [
 let state = loadState();
 let staff = normalizeStaff(state.staff);
 let showInactiveStaff = false;
+let cloudStaffReady = false;
 let lastAddedStaffId = "";
 
 const els = {
@@ -79,6 +80,11 @@ function loadState() {
 function saveState() {
   state.staff = staff;
   localStorage.setItem(appStorageKey(), JSON.stringify(state));
+  if (looksLikeDefaultStaffOnly(staff) && !cloudStaffReady) {
+    setSyncStatus("클라우드 직원 목록 확인 후 저장해주세요.");
+    syncCloudState();
+    return Promise.resolve(false);
+  }
   setSyncStatus("저장 중...");
   return saveStaffStateToCloud()
     .then(() => setSyncStatus("클라우드 저장됨"))
@@ -95,9 +101,13 @@ async function saveStaffStateToCloud() {
   if (typeof cloudEnabled !== "function" || !cloudEnabled()) return true;
 
   const cloudState = await withTimeout(loadStateFromCloud(), cloudStaffTimeoutMs).catch(() => null);
+  const cloudStaff = normalizeStaff(cloudState?.staff, { fallbackToDefault: false });
+  const shouldPreserveCloud = cloudStaff.length > localStaff.length && looksLikeDefaultStaffOnly(localStaff);
   const nextState = {
     ...(cloudState || state),
-    staff: mergeStaffLists(cloudState?.staff, localStaff, { prefer: "local" }),
+    staff: shouldPreserveCloud
+      ? mergeStaffLists(cloudStaff, localStaff, { prefer: "cloud" })
+      : mergeStaffLists(cloudStaff, localStaff, { prefer: "local" }),
   };
   state = nextState;
   staff = normalizeStaff(nextState.staff);
@@ -119,6 +129,7 @@ async function syncCloudState() {
     }
     const localStaff = normalizeStaff(staff, { fallbackToDefault: false });
     const cloudStaff = normalizeStaff(cloudState.staff, { fallbackToDefault: false });
+    cloudStaffReady = true;
     state = {
       ...state,
       ...cloudState,
@@ -199,6 +210,13 @@ function sortStaffForStorage(a, b) {
   const groupDiff = (groupOrder[a.role] ?? 9) - (groupOrder[b.role] ?? 9);
   if (groupDiff) return groupDiff;
   return String(a.createdAt || a.id).localeCompare(String(b.createdAt || b.id));
+}
+
+function looksLikeDefaultStaffOnly(list) {
+  const normalized = normalizeStaff(list, { fallbackToDefault: false });
+  if (normalized.length !== defaultStaff.length) return false;
+  const defaultIds = new Set(defaultStaff.map((person) => person.id));
+  return normalized.every((person) => defaultIds.has(person.id));
 }
 
 function ensureStaffAccessTokens(options = {}) {
