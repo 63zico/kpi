@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-mobile-checkout-submit-1";
+const employeeAppVersion = "20260603-direct-mobile-checkout-1";
 const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {

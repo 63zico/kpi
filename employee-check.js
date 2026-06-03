@@ -961,8 +961,17 @@ function submitCheckoutFromMobileAction(event, button) {
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
   }
-  completeCheckoutGuard();
+  setDraftStatus(currentLang === "vi" ? "Đang gửi kiểm tra cuối ca..." : "퇴근 제출 중...");
+  completeCheckoutGuard({ skipAutosave: true, quiet: true });
   submitSelfCheck({ preventDefault() {} })
+    .catch((error) => {
+      console.warn(error);
+      const message = currentLang === "vi"
+        ? "Chưa gửi được. Vui lòng bấm lại một lần nữa."
+        : "아직 제출되지 않았어요. 한 번만 다시 눌러주세요.";
+      setDraftStatus(message);
+      alert(message);
+    })
     .finally(() => {
       checkoutSubmitLocked = false;
       if (button?.isConnected) {
@@ -1574,16 +1583,19 @@ function handleGoalToggle() {
   updateSpecialCleanLastStatus();
 }
 
-function completeCheckoutGuard() {
+function completeCheckoutGuard(options = {}) {
+  const { skipAutosave = false, quiet = false } = options;
   const wasDone = cleaningQuestDone();
   updateCloseArea();
   if (els.cleanStatus) els.cleanStatus.value = "이상 없음";
   if (els.cleaning) els.cleaning.checked = true;
-  if (!wasDone) praiseOnce("cleaning");
-  if (!wasDone) trackTaskCompleted("checkout_guard");
+  if (!wasDone && !quiet) praiseOnce("cleaning");
+  if (!wasDone && !skipAutosave) trackTaskCompleted("checkout_guard");
   updateQuestProgress();
-  saveDraft({ showMessage: false });
-  saveLiveSelfCheck();
+  if (!skipAutosave) {
+    saveDraft({ showMessage: false });
+    saveLiveSelfCheck();
+  }
 }
 
 function completeAttendanceCheckin() {
@@ -2758,7 +2770,7 @@ function daysBetweenDates(startDate, endDate) {
 }
 
 async function submitSelfCheck(event) {
-  event.preventDefault();
+  event?.preventDefault?.();
   await ensureCloudStaffReady();
   const person = selectedStaff();
   if (!person) {
@@ -2777,7 +2789,7 @@ async function submitSelfCheck(event) {
     return;
   }
   if (questEnabled("cleaning") && !cleaningQuestDone()) {
-    completeCheckoutGuard();
+    completeCheckoutGuard({ skipAutosave: true, quiet: true });
   }
   const missingRequired = requiredQuestMissing();
   if (missingRequired.length) {
