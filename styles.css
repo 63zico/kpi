@@ -8058,6 +8058,7 @@ body.is-preview-staff .employee-phone:not([data-active-tab="home"]) .staff-field
   font-weight: 950;
   box-shadow: 0 14px 26px rgba(34, 169, 232, 0.18);
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .mini-tab-jump:disabled {
@@ -9629,6 +9630,7 @@ td {
     0 14px 24px rgba(28, 176, 246, 0.18),
     inset 0 -3px 0 rgba(16, 36, 63, 0.1);
   cursor: pointer;
+  touch-action: manipulation;
   padding: 15px 18px;
   font-size: 16px;
   font-weight: 950;

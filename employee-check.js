@@ -682,6 +682,7 @@ let photos = [];
 let attendanceTime = "";
 let checkoutTime = "";
 let checkinMood = "";
+let pendingCheckinAfterMood = false;
 let praiseSkipped = false;
 let lastSubmitFeedback = null;
 let attendancePraiseKey = "";
@@ -1466,26 +1467,25 @@ function completeCheckoutGuard() {
   saveLiveSelfCheck();
 }
 
+function completeAttendanceCheckin() {
+  if (!els.attendance || els.attendance.checked) return;
+  els.attendance.checked = true;
+  handleAttendanceToggle();
+  setEmployeeTab("checkin", { scroll: false });
+}
+
 function handleCheckinPageAction() {
   if (!els.attendance?.checked) {
     if (!checkinMood) {
+      pendingCheckinAfterMood = true;
       guideMoodBeforeCheckin();
       return;
     }
-    els.attendance.checked = true;
-    handleAttendanceToggle();
-    setEmployeeTab("checkin", { scroll: false });
+    completeAttendanceCheckin();
     return;
   }
   if (els.goal && !els.goal.checked) {
-    setEmployeeTab("checkin", { scroll: true });
-    setDraftStatus(currentLang === "vi" ? "Hãy xem bản đồ mục tiêu và bấm xác nhận." : "오늘 목표맵을 확인하고 확인 버튼을 눌러주세요.");
-    window.setTimeout(() => {
-      const button = els.employeeTabContent?.querySelector("[data-goal-confirm]");
-      button?.classList.add("needs-attention");
-      button?.scrollIntoView({ behavior: "smooth", block: "center" });
-      window.setTimeout(() => button?.classList.remove("needs-attention"), 1800);
-    }, 80);
+    markGoalConfirmed();
   }
 }
 
@@ -1513,6 +1513,12 @@ function markGoalConfirmed() {
 function handleCheckinMoodSelect(value) {
   checkinMood = value;
   showCheckinMoodToast();
+  if (pendingCheckinAfterMood && !els.attendance?.checked) {
+    pendingCheckinAfterMood = false;
+    completeAttendanceCheckin();
+    return;
+  }
+  pendingCheckinAfterMood = false;
   updateQuestProgress();
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
@@ -2845,6 +2851,7 @@ function resetForm(date) {
   attendanceTime = "";
   checkoutTime = "";
   checkinMood = "";
+  pendingCheckinAfterMood = false;
   praiseSkipped = false;
   updateCloseArea();
   if (els.cleanStatus) els.cleanStatus.value = "";
