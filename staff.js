@@ -1,6 +1,6 @@
 ﻿const storageKey = "doya-kpi-levelup-v2";
 const allWorkDays = [0, 1, 2, 3, 4, 5, 6];
-const employeeAppVersion = "20260603-mobile-checkin-flow-1";
+const employeeAppVersion = "20260605-core-rank-2";
 const cloudStaffTimeoutMs = 6000;
 
 function appStorageKey() {
@@ -35,7 +35,7 @@ const els = {
 init();
 
 function init() {
-  const authResult = window.LeveloveAuth?.requireRole?.(["owner", "admin", "manager"]);
+  const authResult = window.LeveloveAuth?.requireRole?.(["owner", "admin"]);
   if (authResult && !authResult.ok) return;
   renderStaffEditor();
   setSyncStatus("로컬 목록 표시 중");
@@ -677,8 +677,6 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
-
-
 
 
 

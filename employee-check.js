@@ -47,24 +47,24 @@ const defaultPerformanceItems = {
 
 const defaultRankingSettings = [
   {
-    id: "review-award",
-    title: "리뷰왕",
+    id: "hall-award",
+    title: "홀왕",
     role: "hall",
-    missionIds: ["reviewPoint"],
+    missionIds: ["hall-performance"],
     enabled: true,
-    cheer: "리뷰 한 번이 이번 달 트로피에 가까워지는 길이에요.",
+    cheer: "고객 응대와 판매 성과를 차곡차곡 모아봐요.",
     monthlyTrophy: true,
-    mark: "⭐",
+    mark: "🏅",
   },
   {
-    id: "upsell-award",
-    title: "업셀왕",
-    role: "hall",
-    missionIds: ["upsellPoint", "recommendedMenuPoint"],
+    id: "kitchen-award",
+    title: "주방왕",
+    role: "kitchen",
+    missionIds: ["kitchen-performance"],
     enabled: true,
-    cheer: "추천 성공을 차곡차곡 모아봐요.",
+    cheer: "주방 구역을 하나씩 클리어해요.",
     monthlyTrophy: true,
-    mark: "⚡",
+    mark: "🍳",
   },
   {
     id: "praise-award",
@@ -74,27 +74,7 @@ const defaultRankingSettings = [
     enabled: true,
     cheer: "동료에게 받은 고마움도 멋진 성과예요.",
     monthlyTrophy: true,
-    mark: "💬",
-  },
-  {
-    id: "cleaning-award",
-    title: "청소왕",
-    role: "kitchen",
-    missionIds: ["kitchen-performance"],
-    enabled: true,
-    cheer: "깨끗한 구역을 하나씩 클리어해요.",
-    monthlyTrophy: true,
-    mark: "✨",
-  },
-  {
-    id: "marketing-award",
-    title: "마케팅왕",
-    role: "marketer",
-    missionIds: ["marketer-performance"],
-    enabled: true,
-    cheer: "콘텐츠와 보고가 매장의 성장을 만들어요.",
-    monthlyTrophy: true,
-    mark: "📣",
+    mark: "💚",
   },
 ];
 
@@ -111,7 +91,7 @@ const defaultStaff = [
 const defaultStoreSettings = {
   storeName: "우리 매장",
   defaultLanguage: "ko",
-  rankingVisibility: "private",
+  rankingVisibility: "top3",
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
   dailyOperationDate: "",
@@ -689,6 +669,12 @@ let attendancePraiseKey = "";
 let lastRenderedXp = null;
 let activeLevelUpNotice = null;
 let checkoutSubmitLocked = false;
+let checkoutSubmitFinishedAt = 0;
+let checkoutGuardState = {
+  "area-ok": false,
+  "orders-ok": false,
+  "manager-note": false,
+};
 let cloudSaveRevision = 0;
 let cloudStaffLoaded = false;
 let cloudSyncPromise = Promise.resolve(false);
@@ -845,7 +831,6 @@ function init() {
   els.form.addEventListener("submit", submitSelfCheck);
   els.form.addEventListener("click", handleVisibleSubmitClick);
   els.form.addEventListener("click", handleRealtimeAdjust);
-  els.form.addEventListener("pointerdown", handleVisibleSubmitPointerDown);
   els.form.addEventListener("change", (event) => {
     syncLegacyPerformanceFields();
     updateSpecialCleanLastStatus();
@@ -869,12 +854,17 @@ function init() {
       submitCheckoutFromMobileAction(event, submitButton);
       return;
     }
+    const checkoutStatusButton = event.target.closest("[data-checkout-status]");
+    if (checkoutStatusButton) {
+      event.preventDefault();
+      handleCheckoutStatusSelect(checkoutStatusButton);
+      return;
+    }
     const guardInput = event.target.closest("[data-checkout-guard]")
       || event.target.closest("label")?.querySelector("[data-checkout-guard]");
     if (guardInput) {
       event.preventDefault();
-      completeCheckoutGuard();
-      focusCheckoutSubmitButton();
+      handleCheckoutGuardToggle(guardInput);
       return;
     }
     const checkinButton = event.target.closest("[data-checkin-action]");
@@ -923,12 +913,12 @@ function init() {
     if (!button) return;
     setEmployeeTab(button.dataset.jumpTab);
   });
-  els.employeeTabContent?.addEventListener("pointerdown", (event) => {
-    const submitButton = event.target.closest("[data-submit-checkout]");
-    if (!submitButton || event.pointerType === "mouse") return;
-    submitCheckoutFromMobileAction(event, submitButton);
-  });
   els.employeeTabContent?.addEventListener("change", handleProfilePhotoChange);
+  els.employeeTabContent?.addEventListener("input", (event) => {
+    const noteInput = event.target.closest("[data-checkout-note-input]");
+    if (!noteInput) return;
+    handleCheckoutNoteInput(noteInput);
+  });
   els.employeeTabContent?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     const checkinButton = event.target.closest("[data-checkin-action]");
@@ -957,53 +947,59 @@ function init() {
   });
 }
 
-function submitCheckoutFromMobileAction(event, button) {
+async function submitCheckoutFromMobileAction(event, button) {
   event?.preventDefault?.();
   event?.stopPropagation?.();
   event?.stopImmediatePropagation?.();
   if (button?.disabled || checkoutSubmitLocked) return;
+  const now = Date.now();
+  if (now - checkoutSubmitFinishedAt < 2500) return;
+  const missingRequired = requiredQuestMissing();
+  if (missingRequired.length) {
+    guideMissingRequiredQuest();
+    setDraftStatus(currentLang === "vi"
+      ? `Hãy hoàn thành trước: ${missingRequired.join(", ")}`
+      : `먼저 완료해주세요: ${missingRequired.join(", ")}`);
+    return;
+  }
   checkoutSubmitLocked = true;
   if (button) {
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
   }
   setDraftStatus(currentLang === "vi" ? "Đang gửi kiểm tra cuối ca..." : "퇴근 제출 중...");
-  completeCheckoutGuard({ skipAutosave: true, quiet: true });
-  submitSelfCheck({ preventDefault() {} })
-    .catch((error) => {
-      console.warn(error);
-      if (hasPendingSelfCheckForCurrentStaff()) {
-        setDraftStatus(t("draftSubmittedStatus"));
-        try {
-          setEmployeeTab("home", { scroll: false });
-        } catch (tabError) {
-          console.warn(tabError);
-        }
-        return;
+  try {
+    const submitted = await submitSelfCheck({ preventDefault() {} });
+    if (!submitted) setDraftStatus(currentLang === "vi" ? "Chưa gửi được. Vui lòng bấm lại." : "아직 제출되지 않았어요. 다시 눌러주세요.");
+  } catch (error) {
+    console.warn(error);
+    const person = selectedStaff();
+    const date = els.date?.value || "";
+    if (person && date && await confirmPendingSelfCheckSaved(person, date)) {
+      setDraftStatus(t("draftSubmittedStatus"));
+      try {
+        setEmployeeTab("home", { scroll: false });
+      } catch (tabError) {
+        console.warn(tabError);
       }
-      const message = currentLang === "vi"
-        ? "Chưa gửi được. Vui lòng bấm lại một lần nữa."
-        : "아직 제출되지 않았어요. 한 번만 다시 눌러주세요.";
-      setDraftStatus(message);
-      alert(message);
-    })
-    .finally(() => {
-      checkoutSubmitLocked = false;
-      if (button?.isConnected) {
-        button.disabled = false;
-        button.removeAttribute("aria-busy");
-      }
-    });
+      return;
+    }
+    const message = currentLang === "vi"
+      ? "Chưa gửi được. Vui lòng bấm lại một lần nữa."
+      : "아직 제출되지 않았어요. 한 번만 다시 눌러주세요.";
+    setDraftStatus(message);
+    alert(message);
+  } finally {
+    checkoutSubmitFinishedAt = Date.now();
+    checkoutSubmitLocked = false;
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+  }
 }
 
 function handleVisibleSubmitClick(event) {
-  const button = event.target.closest(".submit-self-check");
-  if (!button) return;
-  submitCheckoutFromMobileAction(event, button);
-}
-
-function handleVisibleSubmitPointerDown(event) {
-  if (event.pointerType === "mouse") return;
   const button = event.target.closest(".submit-self-check");
   if (!button) return;
   submitCheckoutFromMobileAction(event, button);
@@ -1014,7 +1010,29 @@ function hasPendingSelfCheckForCurrentStaff() {
   const date = els.date?.value || "";
   if (!person || !date) return false;
   return (state.selfChecks || []).some((entry) => (
-    entry.date === date && entry.staffId === person.id && entry.status === "pending"
+    entry.date === date &&
+    entry.staffId === person.id &&
+    entry.status === "pending" &&
+    isCloudConfirmedSelfCheckEntry(entry)
+  ));
+}
+
+function isCloudConfirmedSelfCheckEntry(entry) {
+  if (!entry || !["pending", "approved"].includes(entry.status)) return false;
+  return Boolean(entry.cloudRowId || entry.cloudConfirmedAt || entry.approvedAt);
+}
+
+function hasCompletedSelfCheckForCurrentStaff() {
+  const person = selectedStaff();
+  const date = els.date?.value || lastSubmitFeedback?.date || "";
+  if (!person || !date) return false;
+  if (lastSubmitFeedback?.date === date && lastSubmitFeedback.staffId === person.id) return true;
+  return (state.selfChecks || []).some((entry) => (
+    entry.date === date &&
+    entry.staffId === person.id &&
+    entry.status !== "rejected" &&
+    entry.checkoutTime &&
+    isCloudConfirmedSelfCheckEntry(entry)
   ));
 }
 
@@ -1032,7 +1050,7 @@ function completePerformanceMission(button) {
   trackTaskCompleted(fieldId, { taskName: performanceItemLabel(item) });
   saveDraft({ showMessage: false });
   saveLiveSelfCheck();
-  renderEmployeeTabContent("performance", questDoneState(), selectedStaff());
+  renderEmployeeTabContent("performance", questCompletionSnapshot(), selectedStaff());
 }
 
 function selectPraiseTarget(button) {
@@ -1110,6 +1128,16 @@ function loadState() {
   }
 }
 
+function safeLocalStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn("Local cache write skipped", error);
+    return false;
+  }
+}
+
 function saveState(options = {}) {
   state.staff = staff;
   state.selfChecks = state.selfChecks || [];
@@ -1142,7 +1170,7 @@ function trackTaskCompleted(taskId, detail = {}) {
 }
 
 function saveEmployeeStateEverywhere(nextState, options = {}) {
-  localStorage.setItem(appStorageKey(), JSON.stringify(nextState));
+  safeLocalStorageSet(appStorageKey(), JSON.stringify(nextState));
   if (typeof cloudEnabled !== "function" || !cloudEnabled()) return Promise.resolve(true);
   const person = selectedStaff();
   const date = els.date.value;
@@ -1157,7 +1185,7 @@ function saveEmployeeStateEverywhere(nextState, options = {}) {
     .then((cloudState) => {
       if (saveRevision !== cloudSaveRevision) return false;
       const mergedState = mergeEmployeeStateForCloud(cloudState, snapshot, person, date);
-      localStorage.setItem(appStorageKey(), JSON.stringify(mergedState));
+      safeLocalStorageSet(appStorageKey(), JSON.stringify(mergedState));
       return saveStateToCloud(mergedState).then(() => true);
     })
     .catch((error) => {
@@ -1190,7 +1218,13 @@ function mergeEmployeeStateForCloud(cloudState, localState, person, date) {
     : localChecks
       .filter((entry) => entry.date === date && entry.staffId === person.id)
       .filter((entry) => !sameCloudFinals.length || selfCheckVersionTime(entry) > latestCloudFinalTime);
-  const untouchedCloud = cloudChecks.filter((entry) => !(entry.date === date && entry.staffId === person.id && entry.status === "live"));
+  const shouldReplaceCloudLive = localMine.length > 0;
+  const untouchedCloud = cloudChecks.filter((entry) => !(
+    shouldReplaceCloudLive &&
+    entry.date === date &&
+    entry.staffId === person.id &&
+    entry.status === "live"
+  ));
 
   return {
     ...cloudState,
@@ -1327,7 +1361,7 @@ async function syncCloudState() {
     };
     staff = normalizeStaff(state.staff);
     if (!localStorage.getItem(langStorageKey)) currentLang = state.storeSettings.defaultLanguage || "ko";
-    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    safeLocalStorageSet(appStorageKey(), JSON.stringify(state));
     applyLanguage();
     renderStaffOptions();
     updateRoleFields();
@@ -1573,6 +1607,84 @@ function cleanStatusDisplayLabel(value) {
   return labels[value]?.[currentLang] || value;
 }
 
+function emptyCheckoutGuardState() {
+  return {
+    "area-ok": false,
+    "orders-ok": false,
+    "manager-note": false,
+  };
+}
+
+function normalizeCheckoutGuardState(value, fallbackDone = false, fallbackStatus = "") {
+  const next = emptyCheckoutGuardState();
+  if (Array.isArray(value)) {
+    value.forEach((key) => {
+      if (key in next) next[key] = true;
+    });
+  } else if (value && typeof value === "object") {
+    Object.keys(next).forEach((key) => {
+      next[key] = Boolean(value[key]);
+    });
+  }
+  if (fallbackDone) {
+    next["area-ok"] = true;
+    next["orders-ok"] = true;
+  }
+  if (fallbackStatus === "매니저 확인 필요") next["manager-note"] = true;
+  return next;
+}
+
+function checkoutGuardSnapshot(fallbackDone = false, ...records) {
+  const fromRecords = records.find((entry) => entry?.checkoutGuards || entry?.cleaningDone || entry?.cleanArea || entry?.cleanStatus);
+  if (fromRecords) {
+    return normalizeCheckoutGuardState(
+      fromRecords.checkoutGuards,
+      Boolean(fromRecords.cleaningDone || fromRecords.cleanArea),
+      fromRecords.cleanStatus || "",
+    );
+  }
+  return normalizeCheckoutGuardState(checkoutGuardState, fallbackDone, els.cleanStatus?.value || "");
+}
+
+function checkoutRequiredGuardsDone(stateValue = checkoutGuardState) {
+  return Boolean(stateValue["area-ok"] && stateValue["orders-ok"]);
+}
+
+function checkoutStatusMode(stateValue = checkoutGuardState) {
+  if (!checkoutRequiredGuardsDone(stateValue)) return "";
+  return stateValue["manager-note"] ? "note" : "ok";
+}
+
+function updateCheckoutGuardDom() {
+  const requiredCount = Number(Boolean(checkoutGuardState["area-ok"])) + Number(Boolean(checkoutGuardState["orders-ok"]));
+  const mode = checkoutStatusMode();
+  document.querySelectorAll("[data-checkout-guard]").forEach((input) => {
+    if (input instanceof HTMLInputElement) {
+      input.checked = Boolean(checkoutGuardState[input.dataset.checkoutGuard]);
+    }
+  });
+  document.querySelectorAll("[data-checkout-status]").forEach((button) => {
+    const isSelected = button.dataset.checkoutStatus === mode;
+    button.classList.toggle("is-selected", isSelected);
+    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+  });
+  document.querySelectorAll("[data-checkout-note-wrap]").forEach((node) => {
+    node.hidden = mode !== "note";
+  });
+  document.querySelectorAll("[data-checkout-note-input]").forEach((input) => {
+    if (input instanceof HTMLTextAreaElement && input.value !== els.note.value) input.value = els.note.value;
+  });
+  document.querySelectorAll("[data-checkout-required-status]").forEach((node) => {
+    if (mode === "note") {
+      node.textContent = currentLang === "vi" ? "Có ghi chú" : "전달사항";
+    } else if (mode === "ok") {
+      node.textContent = currentLang === "vi" ? "Ổn" : "이상 없음";
+    } else {
+      node.textContent = currentLang === "vi" ? "Chọn trạng thái" : "상태 선택";
+    }
+  });
+}
+
 function applyQuestSettings() {
   Object.entries(els.questCards).forEach(([key, card]) => {
     if (card) card.classList.toggle("is-hidden", !questEnabled(key));
@@ -1620,24 +1732,84 @@ function handleGoalToggle() {
   updateSpecialCleanLastStatus();
 }
 
-function completeCheckoutGuard(options = {}) {
+function handleCheckoutGuardToggle(input) {
+  if (!(input instanceof HTMLInputElement)) return;
+  const key = input.dataset.checkoutGuard;
+  if (!key || !(key in checkoutGuardState)) return;
+  checkoutGuardState[key] = !checkoutGuardState[key];
+  syncCheckoutGuardFields({ quiet: false });
+  if (checkoutRequiredGuardsDone()) focusCheckoutSubmitButton();
+}
+
+function handleCheckoutStatusSelect(button) {
+  const mode = button?.dataset?.checkoutStatus || "";
+  if (mode === "ok") {
+    checkoutGuardState = {
+      "area-ok": true,
+      "orders-ok": true,
+      "manager-note": false,
+    };
+    if (els.note) els.note.value = "";
+  } else if (mode === "note") {
+    checkoutGuardState = {
+      "area-ok": true,
+      "orders-ok": true,
+      "manager-note": true,
+    };
+  } else {
+    checkoutGuardState = emptyCheckoutGuardState();
+  }
+  syncCheckoutGuardFields({ quiet: false });
+  if (mode === "note") {
+    window.setTimeout(() => {
+      els.employeeTabContent?.querySelector("[data-checkout-note-input]")?.focus();
+    }, 50);
+  } else {
+    focusCheckoutSubmitButton();
+  }
+}
+
+function handleCheckoutNoteInput(input) {
+  if (!(input instanceof HTMLTextAreaElement)) return;
+  els.note.value = input.value;
+  saveDraft({ showMessage: false });
+  saveLiveSelfCheck();
+}
+
+function syncCheckoutGuardFields(options = {}) {
   const { skipAutosave = false, quiet = false } = options;
   const wasDone = cleaningQuestDone();
+  const requiredDone = checkoutRequiredGuardsDone();
   updateCloseArea();
-  if (els.cleanStatus) els.cleanStatus.value = "이상 없음";
-  if (els.cleaning) els.cleaning.checked = true;
-  if (!wasDone && !quiet) praiseOnce("cleaning");
-  if (!wasDone && !skipAutosave) trackTaskCompleted("checkout_guard");
+  if (els.cleaning) els.cleaning.checked = requiredDone;
+  if (els.cleanStatus) {
+    els.cleanStatus.value = requiredDone
+      ? (checkoutGuardState["manager-note"] ? "매니저 확인 필요" : "이상 없음")
+      : "";
+  }
+  updateCheckoutGuardDom();
+  if (requiredDone && !wasDone && !quiet) praiseOnce("cleaning");
+  if (requiredDone && !wasDone && !skipAutosave) trackTaskCompleted("checkout_guard");
   updateQuestProgress();
   if (!skipAutosave) {
     saveDraft({ showMessage: false });
     saveLiveSelfCheck();
   }
   if (!quiet) {
-    setDraftStatus(currentLang === "vi"
-      ? "Đã xong kiểm tra cuối ca. Bấm nút gửi kết ca bên dưới để gửi cho quản lý."
-      : "마감 가드 완료. 아래 퇴근 제출 버튼을 눌러 매니저에게 보내주세요.");
+    setDraftStatus(requiredDone
+      ? (currentLang === "vi"
+        ? "Đã xong kiểm tra cuối ca. Bấm gửi kết ca bên dưới."
+        : "퇴근 전 점검 완료. 아래 버튼으로 제출해주세요.")
+      : (currentLang === "vi"
+        ? "Hãy hoàn thành 2 mục bắt buộc trước khi gửi."
+        : "필수 2개를 체크하면 퇴근 제출할 수 있어요."));
   }
+}
+
+function completeCheckoutGuard(options = {}) {
+  checkoutGuardState["area-ok"] = true;
+  checkoutGuardState["orders-ok"] = true;
+  syncCheckoutGuardFields(options);
 }
 
 function focusCheckoutSubmitButton() {
@@ -1663,10 +1835,14 @@ function firstVisibleElement(nodes) {
 }
 
 function completeAttendanceCheckin() {
-  if (!els.attendance || els.attendance.checked) return;
+  if (!els.attendance) return;
+  if (els.attendance.checked) {
+    showGoalMapAfterCheckin();
+    return;
+  }
   els.attendance.checked = true;
   handleAttendanceToggle();
-  setEmployeeTab("checkin", { scroll: false });
+  showGoalMapAfterCheckin();
 }
 
 function handleCheckinPageAction() {
@@ -1680,8 +1856,16 @@ function handleCheckinPageAction() {
     return;
   }
   if (els.goal && !els.goal.checked) {
-    markGoalConfirmed();
+    showGoalMapAfterCheckin();
   }
+}
+
+function showGoalMapAfterCheckin() {
+  setEmployeeTab("checkin", { scroll: false });
+  setDraftStatus(currentLang === "vi" ? "Đã chấm công. Hãy xác nhận mục tiêu hôm nay." : "출근 체크 완료. 오늘 목표맵을 확인해주세요.");
+  window.requestAnimationFrame(() => {
+    window.setTimeout(focusGoalConfirmButton, 80);
+  });
 }
 
 function guideMoodBeforeCheckin() {
@@ -1705,6 +1889,19 @@ function focusCheckinActionButton() {
     button.classList.add("is-attention");
     window.setTimeout(() => button.classList.remove("is-attention"), 1300);
   }, 120);
+}
+
+function focusGoalConfirmButton() {
+  const button = firstVisibleElement([
+    els.employeeTabContent?.querySelector("[data-goal-confirm]:not(:disabled)"),
+  ]);
+  const card = els.employeeTabContent?.querySelector(".checkin-goal-map-card");
+  if (!button && !card) return;
+  window.setTimeout(() => {
+    (button || card)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    card?.classList.add("needs-attention");
+    window.setTimeout(() => card?.classList.remove("needs-attention"), 1600);
+  }, 160);
 }
 
 function markGoalConfirmed() {
@@ -1942,11 +2139,7 @@ async function saveProfilePhoto(staffId, dataUrl) {
   ));
   staff = updateStaff(staff);
   state.staff = updateStaff(state.staff || staff);
-  try {
-    localStorage.setItem(appStorageKey(), JSON.stringify(state));
-  } catch (error) {
-    console.warn("Profile photo local cache skipped", error);
-  }
+  safeLocalStorageSet(appStorageKey(), JSON.stringify(state));
   renderStaffOptions();
   updateQuestProgress();
   if (typeof cloudEnabled !== "function" || !cloudEnabled()) {
@@ -1958,11 +2151,7 @@ async function saveProfilePhoto(staffId, dataUrl) {
     ...(cloudState || {}),
     staff: updateStaff(normalizeStaff(cloudState?.staff || state.staff)),
   };
-  try {
-    localStorage.setItem(appStorageKey(), JSON.stringify(nextCloudState));
-  } catch (error) {
-    console.warn("Profile photo cloud cache skipped", error);
-  }
+  safeLocalStorageSet(appStorageKey(), JSON.stringify(nextCloudState));
   state = {
     ...nextCloudState,
     storeSettings: normalizeStoreSettings(nextCloudState.storeSettings),
@@ -2024,7 +2213,7 @@ function loadDrafts() {
 }
 
 function writeDrafts(drafts) {
-  localStorage.setItem(draftStorageKey, JSON.stringify(drafts));
+  safeLocalStorageSet(draftStorageKey, JSON.stringify(drafts));
 }
 
 function draftPayload() {
@@ -2041,6 +2230,7 @@ function draftPayload() {
     cleaningDone: Boolean(els.cleaning.checked),
     cleanArea: els.cleanArea?.value || "",
     cleanStatus: els.cleanStatus?.value || "",
+    checkoutGuards: { ...checkoutGuardState },
     goalChecked: Boolean(els.goal.checked),
     goalType: els.goal.checked ? operationPointSummary() : "",
     helpSkipped: praiseSkipped,
@@ -2215,8 +2405,10 @@ function restoreDraft() {
   checkoutTime = draft.checkoutTime || "";
   checkinMood = draft.checkinMood || "";
   els.cleaning.checked = Boolean(draft.cleaningDone);
+  checkoutGuardState = normalizeCheckoutGuardState(draft.checkoutGuards, Boolean(draft.cleaningDone), draft.cleanStatus || "");
   updateCloseArea();
   if (els.cleanStatus) els.cleanStatus.value = draft.cleanStatus || "";
+  syncCheckoutGuardFields({ skipAutosave: true, quiet: true });
   els.goal.checked = Boolean(draft.goalChecked);
   praiseSkipped = Boolean(draft.helpSkipped);
   renderPraiseTargetOptions(draft.helpType || "");
@@ -2252,8 +2444,10 @@ function clearDraftFormValues() {
   attendancePraiseKey = "";
   checkinMood = "";
   els.cleaning.checked = false;
+  checkoutGuardState = emptyCheckoutGuardState();
   updateCloseArea();
   if (els.cleanStatus) els.cleanStatus.value = "";
+  updateCheckoutGuardDom();
   els.goal.checked = false;
   praiseSkipped = false;
   setRealtimeCount(els.helpCount, 0);
@@ -2859,7 +3053,7 @@ async function submitSelfCheck(event) {
   const person = selectedStaff();
   if (!person) {
     alert(currentLang === "vi" ? "Vui lòng mở bằng link cá nhân để ghi nhận." : "직원 전용 링크로 접속한 뒤 기록할 수 있어요.");
-    return;
+    return false;
   }
 
   const date = els.date.value;
@@ -2868,18 +3062,42 @@ async function submitSelfCheck(event) {
     entry.date === date && entry.staffId === person.id && entry.status === "pending"
   ));
   const alreadyRecorded = (state.personalEntries || []).some((entry) => entry.date === date && entry.staffId === person.id);
-  if (!isFreshTestMode && (alreadySubmitted || alreadyRecorded)) {
-    alert(t("duplicateAlert"));
-    return;
+  if (!isFreshTestMode && alreadySubmitted) {
+    const existingPending = (state.selfChecks || []).find((entry) => (
+      entry.date === date && entry.staffId === person.id && entry.status === "pending"
+    ));
+    const dedicatedSaved = await saveSelfCheckEntrySafely(existingPending);
+    await saveState({ critical: true });
+    const confirmed = dedicatedSaved || await confirmPendingSelfCheckSaved(person, date, existingPending?.id);
+    if (confirmed) {
+      lastSubmitFeedback = {
+        date,
+        staffId: person.id,
+        time: existingPending?.checkoutTime || checkoutTime || formatClockTime(new Date()),
+        createdAt: Date.now(),
+      };
+      setDraftStatus(t("draftSubmittedStatus"));
+      renderHistory();
+      renderRankings();
+      setEmployeeTab("home", { scroll: false });
+      return true;
+    }
+    const message = currentLang === "vi"
+      ? "Chưa đồng bộ được với màn hình quản lý. Kiểm tra mạng rồi gửi lại."
+      : "매니저 화면에 아직 동기화되지 않았어요. 인터넷 연결을 확인하고 다시 제출해주세요.";
+    setDraftStatus(message);
+    alert(message);
+    return false;
   }
-  if (questEnabled("cleaning") && !cleaningQuestDone()) {
-    completeCheckoutGuard({ skipAutosave: true, quiet: true });
+  if (!isFreshTestMode && alreadyRecorded) {
+    alert(t("duplicateAlert"));
+    return false;
   }
   const missingRequired = requiredQuestMissing();
   if (missingRequired.length) {
     alert(`${t("requiredQuestAlert")}${missingRequired.join(", ")}`);
     guideMissingRequiredQuest();
-    return;
+    return false;
   }
   checkoutTime = formatClockTime(new Date());
   renderCheckoutTime();
@@ -2903,6 +3121,7 @@ async function submitSelfCheck(event) {
     cleaningDone: questEnabled("cleaning") && els.cleaning.checked,
     cleanArea: questEnabled("cleaning") ? (els.cleanArea?.value || "") : "",
     cleanStatus: questEnabled("cleaning") ? (els.cleanStatus?.value || "") : "",
+    checkoutGuards: questEnabled("cleaning") ? { ...checkoutGuardState } : emptyCheckoutGuardState(),
     goalChecked: questEnabled("goal") && els.goal.checked,
     goalType: questEnabled("goal") && els.goal.checked ? operationPointSummary() : "",
     helpSkipped: questEnabled("help") && praiseSkipped,
@@ -2972,18 +3191,23 @@ async function submitSelfCheck(event) {
     date,
     dedupeKey: `${date}:${person.id}:employee_submit`,
   });
+  const pendingEntry = (state.selfChecks || []).find((item) => item.id === submittedEntryId) || entry;
+  const dedicatedSaved = await saveSelfCheckEntrySafely(pendingEntry);
   const saved = await saveState({ critical: true });
-  if (!saved) {
+  const confirmed = dedicatedSaved || saved && await confirmPendingSelfCheckSaved(person, date, submittedEntryId);
+  if (!confirmed) {
     state.selfChecks = previousSelfChecks;
     state.analyticsEvents = previousAnalyticsEvents;
-    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    checkoutTime = "";
+    renderCheckoutTime();
+    safeLocalStorageSet(appStorageKey(), JSON.stringify(state));
     const message = currentLang === "vi"
       ? "Chưa đồng bộ được với màn hình quản lý. Kiểm tra mạng rồi gửi lại."
       : "매니저 화면에 아직 동기화되지 않았어요. 인터넷 연결을 확인하고 다시 제출해주세요.";
     setDraftStatus(message);
     renderHistory();
     alert(message);
-    return;
+    return false;
   }
   lastSubmitFeedback = {
     date,
@@ -3001,6 +3225,53 @@ async function submitSelfCheck(event) {
   } catch (error) {
     console.warn(error);
     setDraftStatus(t("draftSubmittedStatus"));
+  }
+  return true;
+}
+
+async function saveSelfCheckEntrySafely(entry) {
+  if (!entry || typeof saveSelfCheckEntryToCloud !== "function") return false;
+  try {
+    const saved = await withTimeout(saveSelfCheckEntryToCloud(entry), cloudCriticalSaveTimeoutMs);
+    if (saved) {
+      entry.cloudRowId = typeof cloudSelfCheckEntryId === "function"
+        ? cloudSelfCheckEntryId(entry)
+        : entry.cloudRowId || "";
+      entry.cloudConfirmedAt = new Date().toISOString();
+    }
+    return saved;
+  } catch (error) {
+    console.warn(error);
+    return false;
+  }
+}
+
+async function confirmPendingSelfCheckSaved(person, date, entryId) {
+  if (typeof cloudEnabled !== "function" || !cloudEnabled()) return true;
+  try {
+    const cloudState = await withTimeout(loadStateFromCloud(), cloudCriticalSaveTimeoutMs);
+    const cloudChecks = Array.isArray(cloudState?.selfChecks) ? cloudState.selfChecks : [];
+    const pendingEntry = cloudChecks.find((entry) => (
+      entry.date === date &&
+      entry.staffId === person.id &&
+      entry.status === "pending" &&
+      (!entryId || entry.id === entryId || entry.checkoutTime)
+    ));
+    if (!pendingEntry) return false;
+    state = {
+      ...state,
+      ...cloudState,
+      storeSettings: normalizeStoreSettings(cloudState.storeSettings),
+      selfChecks: cloudChecks,
+      announcements: Array.isArray(cloudState.announcements) ? cloudState.announcements : (state.announcements || []),
+      analyticsEvents: mergeAnalyticsEvents(state.analyticsEvents, cloudState.analyticsEvents),
+    };
+    staff = normalizeStaff(state.staff);
+    safeLocalStorageSet(appStorageKey(), JSON.stringify(state));
+    return true;
+  } catch (error) {
+    console.warn(error);
+    return false;
   }
 }
 
@@ -3023,7 +3294,7 @@ async function refreshCurrentSelfCheckFromCloud(person, date) {
     if (!currentCloudChecks.length) return;
     const otherLocalChecks = (state.selfChecks || []).filter((entry) => !(entry.date === date && entry.staffId === person.id));
     state.selfChecks = upsertChecksById([...otherLocalChecks, ...currentCloudChecks]);
-    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    safeLocalStorageSet(appStorageKey(), JSON.stringify(state));
   } catch (error) {
     console.warn(error);
   }
@@ -3033,7 +3304,9 @@ function requiredQuestMissing() {
   const missing = [];
   if (questEnabled("attendance") && !els.attendance.checked) missing.push(t("attendanceTitle"));
   if (questEnabled("goal") && !els.goal.checked) missing.push(t("goalTitle"));
-  if (questEnabled("cleaning") && (!els.cleaning?.checked || !els.cleanArea?.value)) missing.push(t("cleaningTitle"));
+  if (questEnabled("cleaning") && (!els.cleaning?.checked || !els.cleanArea?.value)) {
+    missing.push(currentLang === "vi" ? "Chọn trạng thái cuối ca" : "퇴근 상태 선택");
+  }
   return missing;
 }
 
@@ -3052,7 +3325,13 @@ function guideMissingRequiredQuest() {
   }
   if (questEnabled("cleaning") && (!els.cleaning?.checked || !els.cleanArea?.value)) {
     setEmployeeTab("mission", { scroll: true });
-    setDraftStatus(currentLang === "vi" ? "Hãy gửi kiểm tra cuối ca." : "퇴근 탭에서 마감 상태를 확인하고 제출해주세요.");
+    setDraftStatus(currentLang === "vi" ? "Chọn trạng thái cuối ca rồi gửi." : "퇴근 탭에서 오늘 마감 상태를 먼저 선택해주세요.");
+    window.setTimeout(() => {
+      const card = els.employeeTabContent?.querySelector(".checkout-card");
+      card?.classList.add("needs-attention");
+      card?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => card?.classList.remove("needs-attention"), 1600);
+    }, 80);
   }
 }
 
@@ -3074,8 +3353,10 @@ function resetForm(date) {
   checkinMood = "";
   pendingCheckinAfterMood = false;
   praiseSkipped = false;
+  checkoutGuardState = emptyCheckoutGuardState();
   updateCloseArea();
   if (els.cleanStatus) els.cleanStatus.value = "";
+  updateCheckoutGuardDom();
   setRealtimeCount(els.helpCount, 0);
   setRealtimeCount(els.reviewPoint, 0);
   setRealtimeCount(els.upsellPoint, 0);
@@ -3130,7 +3411,7 @@ function renderRankings() {
 }
 
 function setEmployeeTab(tab, options = {}) {
-  const selectedTab = ["home", "checkin", "mission", "performance", "my"].includes(tab) ? tab : "home";
+  const selectedTab = ["home", "checkin", "mission", "performance", "ranking", "my"].includes(tab) ? tab : "home";
   document.body.dataset.employeeTab = selectedTab;
   els.employeePhone?.setAttribute("data-active-tab", selectedTab);
   if (els.employeePhone) {
@@ -3169,8 +3450,8 @@ function employeeCopy() {
       checkinDoneText: "Giờ vào ca đã được ghi. Xem mục tiêu hôm nay để bắt đầu ca làm.",
       checkoutTitle: "Nhiệm vụ kết ca",
       checkoutText: "Hoàn thành kiểm tra cuối ngày để khép lại nhiệm vụ.",
-      performanceTitle: "Nhiệm vụ tăng trưởng",
-      performanceText: "Ghi nhận khoảnh khắc khách vui, gợi ý thành công và đóng góp nhỏ.",
+      performanceTitle: "Ghi thành tích",
+      performanceText: "Chỉ bấm những việc đã làm hôm nay.",
       rankingTitle: "Sảnh danh vọng",
       rankingText: "Xem các danh hiệu review, gợi ý, khen ngợi và vệ sinh.",
       myTitle: "Của tôi",
@@ -3218,7 +3499,7 @@ function employeeCopy() {
       checkinCompleted: "đã chấm công!",
       tapCheckin: "Hãy bấm chấm công",
       checkinGuide: "Sau khi vào ca, xem mục tiêu hôm nay. Giờ tan ca sẽ ghi ở bước cuối.",
-      checkinNextAttendance: "Hãy bấm chấm công bên dưới trước.",
+      checkinNextAttendance: "Bấm bắt đầu để mở mục tiêu hôm nay.",
       checkinNextGoal: "Xem mục tiêu vận hành để sẵn sàng bắt đầu ca.",
       checkinPageReadyTitle: "Bắt đầu ca",
       checkinPageReadyText: "Bấm chấm công để xem mục tiêu hôm nay.",
@@ -3229,7 +3510,7 @@ function employeeCopy() {
       checkoutRecordedMini: "đã ghi giờ tan ca",
       checkoutNotYet: "Chưa ghi giờ tan ca.",
       viewCheckout: "Xem giờ tan ca",
-      goCheckout: "Đi chấm tan ca",
+      goCheckout: "Gửi kết ca",
       checkoutBeforeTitle: "Kiểm tra trước khi về",
       checkoutGuide: "Kiểm tra cuối ca rồi bấm gửi. Thời gian hiện tại sẽ được ghi là giờ tan ca.",
       performanceGuide: "Bấm nhận huy hiệu là tự lưu ngay. XP sẽ cộng chính thức sau khi xác nhận.",
@@ -3292,10 +3573,10 @@ function employeeCopy() {
     checkinDoneText: "오늘 모험이 시작됐어요. 목표 맵을 열고 가볍게 시작해요.",
     checkoutTitle: "마감 퀘스트",
     checkoutText: "마지막 가드 체크를 완료하고 오늘 모험을 마무리해요.",
-    performanceTitle: "성장 미션",
-    performanceText: "고객이 웃은 순간, 추천 성공, 팀 도움을 배지처럼 모아요.",
+    performanceTitle: "성과 기록",
+    performanceText: "오늘 완료한 일만 가볍게 남겨요.",
     rankingTitle: "명예의 전당",
-    rankingText: "리뷰왕, 업셀왕, 칭찬왕, 청소왕 배지를 확인해요.",
+    rankingText: "홀왕, 주방왕, 칭찬왕 랭킹을 확인해요.",
     myTitle: "마이",
     myText: "내 제출 기록, 승인 상태, streak와 성장 기록을 확인해요.",
     selectStaffName: "직원을 선택해주세요",
@@ -3341,7 +3622,7 @@ function employeeCopy() {
     checkinCompleted: "출근 완료!",
     tapCheckin: "출근 체크를 눌러주세요",
     checkinGuide: "출근 후 바로 아래에서 오늘 운영 포인트를 확인해요. 퇴근 입력은 마지막 점검 때 합니다.",
-    checkinNextAttendance: "아래 출근 체크를 먼저 눌러주세요.",
+    checkinNextAttendance: "모험 시작을 누르면 오늘 목표맵이 보여요.",
     checkinNextGoal: "오늘 운영 포인트까지 확인하면 시작 준비 완료예요.",
     checkinPageReadyTitle: "출근 체크",
     checkinPageReadyText: "출근 체크를 누르면 오늘의 목표가 바로 보여요.",
@@ -3352,7 +3633,7 @@ function employeeCopy() {
     checkoutRecordedMini: "퇴근 기록됨",
     checkoutNotYet: "퇴근시간은 아직 기록 전이에요.",
     viewCheckout: "퇴근 기록 확인",
-    goCheckout: "퇴근 체크하러 가기",
+    goCheckout: "퇴근 제출하기",
     checkoutBeforeTitle: "퇴근 전 마감 확인",
     checkoutGuide: "마감 확인 후 “퇴근 체크하고 제출”을 누르면 현재 시간이 퇴근시간으로 저장돼요.",
     performanceGuide: "배지를 누르면 바로 자동 저장돼요. 최종 XP는 확인 후 반영됩니다.",
@@ -3419,7 +3700,7 @@ function currentDayQuestRecord(person = selectedStaff(), date = els.date.value) 
   const selfEntries = (state.selfChecks || [])
     .filter((entry) => entry.staffId === person.id && entry.date === date && entry.status !== "rejected")
     .sort(sortLatest);
-  const finalEntry = selfEntries.find((entry) => ["pending", "approved"].includes(entry.status)) || null;
+  const finalEntry = selfEntries.find((entry) => isCloudConfirmedSelfCheckEntry(entry)) || null;
   const liveEntry = selfEntries.find((entry) => entry.status === "live") || null;
   const personalEntry = (state.personalEntries || [])
     .filter((entry) => entry.staffId === person.id && entry.date === date)
@@ -3502,10 +3783,9 @@ function renderEmployeeTabPanel(tab) {
   const panel = panels[tab] || panels.home;
   const activePerson = selectedStaff();
   if (tab === "performance" && isKitchenRole(activePerson?.role)) {
-    panel.title = currentLang === "vi" ? "Vệ sinh đặc biệt" : "특수 청소";
     panel.text = currentLang === "vi"
-      ? "Chọn khu vực đã vệ sinh và xem lần vệ sinh gần nhất."
-      : "청소한 구역을 선택하고 마지막 청소일을 확인해요.";
+      ? "Chỉ chọn khu vực đã làm hôm nay."
+      : "오늘 완료한 구역만 선택해요.";
   }
   if (tab === "performance" && isMarketerRole(activePerson?.role)) {
     panel.title = currentLang === "vi" ? "Marketing" : "마케터 기여도";
@@ -3549,11 +3829,11 @@ function renderEmployeeTabContent(tab, done, person) {
     .reverse();
   const weekSummary = performancePeriodSummary(person, "week", els.date.value);
   const monthSummary = performancePeriodSummary(person, "month", els.date.value);
-  const submittedCheckoutTime = checkoutTime || todaySubmittedEntry?.checkoutTime || todayPersonalEntry?.checkoutTime || "";
-  const submittedAttendanceTime = attendanceTime || todayProgressEntry?.attendanceTime || todayPersonalEntry?.attendanceTime || "";
   const submitFeedback = lastSubmitFeedback && person && lastSubmitFeedback.staffId === person.id && lastSubmitFeedback.date === els.date.value
     ? lastSubmitFeedback
     : null;
+  const submittedCheckoutTime = submitFeedback?.time || todaySubmittedEntry?.checkoutTime || todayPersonalEntry?.checkoutTime || "";
+  const submittedAttendanceTime = attendanceTime || todayProgressEntry?.attendanceTime || todayPersonalEntry?.attendanceTime || "";
   const reviewCount = Math.max(readRealtimeCount(els.reviewPoint), entryNumber(todayProgressEntry, "reviewPoint"), entryNumber(todayPersonalEntry, "reviewPoint"));
   const upsellCount = Math.max(readRealtimeCount(els.upsellPoint), entryNumber(todayProgressEntry, "upsellPoint"), entryNumber(todayPersonalEntry, "upsellPoint"));
   const membershipCount = Math.max(readRealtimeCount(els.membershipPoint), entryNumber(todayProgressEntry, "membershipPoint"), entryNumber(todayPersonalEntry, "membershipPoint"));
@@ -3577,7 +3857,7 @@ function renderEmployeeTabContent(tab, done, person) {
       renderLaunchMissionTile(
         performanceMissionIcon(item, index),
         performanceItemLabel(item),
-        currentLang === "vi" ? `Điểm +${item.xp} · 1 lần` : `성과 포인트 +${item.xp} · 1회`,
+        currentLang === "vi" ? `+${item.xp} điểm · 1 lần` : `성과 +${item.xp} · 1회`,
         item.id,
         performanceCountForItem(item.id, todayProgressEntry, todayPersonalEntry) > 0,
       )
@@ -3585,7 +3865,7 @@ function renderEmployeeTabContent(tab, done, person) {
   const rolePerformanceEmpty = currentLang === "vi"
     ? "Chưa có nhiệm vụ thành tích cho vai trò này."
     : "이 역할에 켜진 성과 미션이 없어요.";
-  const rankingCandidate = currentRankingCandidate(person);
+  const performanceCandidateStrip = renderPerformanceCandidateStrip(person);
   const hallRealtimeXp = currentPerformanceTotalForRole("hall", todayProgressEntry, todayPersonalEntry);
   const kitchenRealtimeXp = currentPerformanceTotalForRole("kitchen", todayProgressEntry, todayPersonalEntry);
   const marketerRealtimeXp = currentPerformanceTotalForRole("marketer", todayProgressEntry, todayPersonalEntry);
@@ -3597,6 +3877,14 @@ function renderEmployeeTabContent(tab, done, person) {
   const hasAttendance = Boolean(submitFeedback || els.attendance?.checked || todayProgressEntry?.attendance || todayPersonalEntry?.worked || submittedAttendanceTime);
   const hasGoal = Boolean(submitFeedback || els.goal?.checked || entryHasGoal(todayProgressEntry) || entryHasGoal(todayPersonalEntry));
   const hasCleaning = Boolean(submitFeedback || (els.cleaning?.checked && els.cleanArea?.value) || entryHasCleaning(todayProgressEntry) || entryHasCleaning(todayPersonalEntry));
+  const visibleCheckoutGuards = checkoutGuardSnapshot(hasCleaning, todayProgressEntry, todayPersonalEntry);
+  const checkoutMode = checkoutStatusMode(visibleCheckoutGuards);
+  const checkoutStatusText = checkoutMode === "note"
+    ? (currentLang === "vi" ? "Có ghi chú" : "전달사항")
+    : checkoutMode === "ok"
+      ? (currentLang === "vi" ? "Ổn" : "이상 없음")
+      : (currentLang === "vi" ? "Chọn trạng thái" : "상태 선택");
+  const checkoutNoteText = els.note?.value || todayProgressEntry?.note || todaySubmittedEntry?.note || todayPersonalEntry?.note || "";
   const hasCheckout = Boolean(submitFeedback || submittedCheckoutTime);
   const todayExpectedXp = (hasAttendance ? 10 : 0) + (hasGoal ? 10 : 0) + (hasCleaning ? 10 : 0) + (helpCount ? 10 : 0) + realtimeXp;
   const startActionTitle = hasAttendance && hasGoal ? copy.startDone : hasAttendance ? copy.goalCheck : copy.checkinAction;
@@ -3763,8 +4051,8 @@ function renderEmployeeTabContent(tab, done, person) {
       </section>
     `,
     checkin: `
-      ${checkinMoodCard}
       ${!hasAttendance ? `
+        ${checkinMoodCard}
         <div class="checkin-page-card">
           <div class="checkin-page-icon" aria-hidden="true">✓</div>
           <span class="mini-label">${copy.firstTodo}</span>
@@ -3781,23 +4069,34 @@ function renderEmployeeTabContent(tab, done, person) {
         <div class="launch-page-hero">
           <div class="mini-hati sleepy" aria-hidden="true"></div>
           <div>
-            <strong>${currentLang === "vi" ? "Nhiệm vụ kết ca" : "마감 퀘스트"}</strong>
-            <span>${currentLang === "vi" ? "Chỉ cần để lại trạng thái cuối ca thật nhẹ nhàng." : "퇴근 전 마지막 상태만 가볍게 남겨요."}</span>
+            <strong>${currentLang === "vi" ? "Gửi kết ca" : "퇴근 제출"}</strong>
+            <span>${currentLang === "vi" ? "Chọn trạng thái rồi gửi cho quản lý." : "오늘 상태만 고르고 매니저에게 제출해요."}</span>
           </div>
         </div>
         <div class="launch-card checkout-card">
           <div class="launch-card-head">
             <div>
-              <strong>${currentLang === "vi" ? "Kiểm tra trước khi về" : "퇴근 전 점검"}</strong>
-              <span>${currentLang === "vi" ? "Không phải báo cáo lỗi, chỉ là xác nhận trạng thái." : "문제 보고가 아니라 마감 상태 확인이에요."}</span>
+              <strong>${currentLang === "vi" ? "Trạng thái cuối ca" : "오늘 마감 상태"}</strong>
+              <span>${currentLang === "vi" ? "Không cần checklist dài. Chỉ chọn một trạng thái." : "긴 체크리스트 없이 상태만 하나 선택하세요."}</span>
             </div>
-            <b>${currentLang === "vi" ? "Điểm +1" : "성과 포인트 +1"}</b>
+            <b data-checkout-required-status>${checkoutStatusText}</b>
           </div>
-          <div class="launch-check-list">
-            <label><input type="checkbox" data-checkout-guard ${hasCleaning ? "checked" : ""} /> ${currentLang === "vi" ? "Khu vực của tôi không có vấn đề" : "내 구역 마감 상태 이상 없음"}</label>
-            <label><input type="checkbox" data-checkout-guard ${hasCleaning ? "checked" : ""} /> ${currentLang === "vi" ? "Đã kiểm tra đơn hàng/khách" : "고객 응대/주문 누락 확인"}</label>
-            <label><input type="checkbox" data-checkout-guard /> ${currentLang === "vi" ? "Có nội dung cần báo quản lý" : "매니저에게 전달할 내용 있음"}</label>
+          <div class="checkout-status-options" role="group" aria-label="${currentLang === "vi" ? "Trạng thái cuối ca" : "퇴근 상태 선택"}">
+            <button class="${checkoutMode === "ok" ? "is-selected" : ""}" type="button" data-checkout-status="ok" aria-pressed="${checkoutMode === "ok" ? "true" : "false"}">
+              <span>✓</span>
+              <strong>${currentLang === "vi" ? "Ổn" : "이상 없음"}</strong>
+              <small>${currentLang === "vi" ? "Không có gì cần báo." : "전달할 내용 없이 퇴근해요."}</small>
+            </button>
+            <button class="${checkoutMode === "note" ? "is-selected" : ""}" type="button" data-checkout-status="note" aria-pressed="${checkoutMode === "note" ? "true" : "false"}">
+              <span>!</span>
+              <strong>${currentLang === "vi" ? "Có ghi chú" : "전달사항 있음"}</strong>
+              <small>${currentLang === "vi" ? "Để lại lời nhắn cho quản lý." : "매니저에게 짧게 남겨요."}</small>
+            </button>
           </div>
+          <label class="checkout-note-field" data-checkout-note-wrap ${checkoutMode === "note" ? "" : "hidden"}>
+            <span>${currentLang === "vi" ? "Ghi chú cho quản lý" : "매니저에게 전달할 내용"}</span>
+            <textarea data-checkout-note-input rows="3" placeholder="${currentLang === "vi" ? "Ví dụ: Hết đá, cần bổ sung khăn..." : "예: 얼음 부족, 내일 확인 필요..."}">${escapeHtml(checkoutNoteText)}</textarea>
+          </label>
           <button class="home-checkin-cta" type="button" data-submit-checkout ${submittedCheckoutTime ? "disabled" : ""}>
             ${submittedCheckoutTime ? copy.checkoutDone : copy.goCheckout}
           </button>
@@ -3815,30 +4114,10 @@ function renderEmployeeTabContent(tab, done, person) {
     `,
     performance: `
       <section class="launch-style-page performance">
-        <div class="launch-page-hero">
-          <div class="mini-hati success" aria-hidden="true"></div>
-          <div>
-            <strong>${currentLang === "vi" ? "Nhiệm vụ tăng trưởng" : "성장 미션"}</strong>
-            <span>${currentLang === "vi" ? "Nhiệm vụ chỉ ghi điểm thành tích, không cộng LEVO XP." : "성과 미션은 성과 포인트만 기록됩니다. LEVO XP와는 상관없어요."}</span>
-          </div>
-        </div>
+        ${performanceCandidateStrip}
         <div class="launch-mission-grid">
           ${rolePerformanceTiles || `<div class="launch-empty-state">${rolePerformanceEmpty}</div>`}
         </div>
-        ${rankingCandidate ? `<div class="launch-status-card ranking-candidate-card">
-          <div>
-            <small>${currentLang === "vi" ? "Trạng thái ứng viên" : "후보 상태"}</small>
-            <strong>${escapeHtml(rankingCandidate.title)}</strong>
-            <em>${escapeHtml(rankingCandidate.cheer)}</em>
-            <span class="ranking-candidate-progress" aria-hidden="true"><i style="width:${rankingCandidate.progress}%"></i></span>
-            <span class="ranking-candidate-hint">${escapeHtml(rankingCandidate.gapText)}</span>
-          </div>
-          <b>${escapeHtml(rankingCandidate.valueText)}</b>
-          <div class="ranking-candidate-stats">
-            <span><small>${currentLang === "vi" ? "Hạng của tôi" : "내 순위"}</small><strong>${escapeHtml(rankingCandidate.rankText)}</strong></span>
-            <span><small>${currentLang === "vi" ? "Cúp" : "트로피"}</small><strong>${escapeHtml(rankingCandidate.trophyText)}</strong></span>
-          </div>
-        </div>` : ""}
       </section>
     `,
     ranking: `
@@ -4253,37 +4532,33 @@ function renderHomeWeeklyPerformanceCards(person, copy) {
 function achievementTrophyTypes() {
   return [
     {
+      key: "hall",
+      icon: "🏅",
+      ko: "홀왕",
+      vi: "Vua sảnh",
+      value: (personEntries) => {
+        const hallIds = performanceItemsForRole("hall").map((item) => item.id);
+        return personEntries.reduce((sum, entry) => sum + hallIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0), 0);
+      },
+      eligible: (person) => isHallRole(person.role),
+    },
+    {
+      key: "kitchen",
+      icon: "🍳",
+      ko: "주방왕",
+      vi: "Vua bếp",
+      value: (personEntries) => {
+        const kitchenIds = performanceItemsForRole("kitchen").map((item) => item.id);
+        return personEntries.reduce((sum, entry) => sum + kitchenIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0), 0);
+      },
+      eligible: (person) => isKitchenRole(person.role),
+    },
+    {
       key: "praise",
-      icon: "💬",
+      icon: "💚",
       ko: "칭찬왕",
       vi: "Vua khen",
       value: (personEntries, allEntries, person) => allEntries.filter((entry) => entry.helpType === person.id).length,
-    },
-    {
-      key: "review",
-      icon: "⭐",
-      ko: "리뷰왕",
-      vi: "Vua review",
-      value: (personEntries) => personEntries.reduce((sum, entry) => (
-        sum + Number(entry.reviewPoint || 0) + Number(entry.membershipPoint || 0)
-      ), 0),
-    },
-    {
-      key: "upsell",
-      icon: "⚡",
-      ko: "업셀왕",
-      vi: "Vua upsell",
-      value: (personEntries) => personEntries.reduce((sum, entry) => (
-        sum + Number(entry.upsellPoint || 0) + Number(entry.recommendedMenuPoint || 0)
-      ), 0),
-    },
-    {
-      key: "cleaning",
-      icon: "✨",
-      ko: "청소왕",
-      vi: "Vua vệ sinh",
-      value: (personEntries) => personEntries.reduce((sum, entry) => sum + specialCleanCountFromEntry(entry), 0),
-      eligible: (person) => isKitchenRole(person.role),
     },
   ];
 }
@@ -4433,7 +4708,13 @@ function periodDateRange(period, targetDate) {
 }
 
 function renderMyProfileCard({ person, name, role, xp, level, streak, myRank, copy, growthCard }) {
-  const profilePhoto = profilePhotoDataUrl(person);
+  const profilePerson = person || lockedStaffFromUrl() || {
+    id: lockedStaffId || "guest",
+    name,
+    role: lockedStaffRole || "hall",
+    profilePhotoDataUrl: "",
+  };
+  const profilePhoto = profilePhotoDataUrl(profilePerson);
   const labels = currentLang === "vi"
     ? {
         profile: "Hồ sơ",
@@ -4478,12 +4759,12 @@ function renderMyProfileCard({ person, name, role, xp, level, streak, myRank, co
             ? `<img class="my-profile-avatar-photo" src="${escapeHtml(profilePhoto)}" alt="${escapeHtml(name)} 프로필 사진" />`
             : `<div class="mini-hati my my-profile-avatar" aria-hidden="true"></div>`}
           <span class="my-avatar-change-badge">${currentLang === "vi" ? "Đổi ảnh" : "사진 변경"}</span>
-          <input type="file" accept="image/*" data-profile-photo-input data-profile-staff-id="${escapeHtml(person.id)}" />
+          <input type="file" accept="image/*" data-profile-photo-input data-profile-staff-id="${escapeHtml(profilePerson.id)}" />
         </label>
         <div class="my-profile-copy">
           <label class="my-edit-button" title="${currentLang === "vi" ? "Đổi ảnh hồ sơ" : "프로필 사진 변경"}">
             <span aria-hidden="true">✎</span>
-            <input type="file" accept="image/*" data-profile-photo-input data-profile-staff-id="${escapeHtml(person.id)}" />
+            <input type="file" accept="image/*" data-profile-photo-input data-profile-staff-id="${escapeHtml(profilePerson.id)}" />
           </label>
           <span class="mini-label">${copy.myProfile}</span>
           <h3>${escapeHtml(name)}</h3>
@@ -4903,8 +5184,8 @@ function updateQuestProgress() {
   lastRenderedXp = totalXp;
   if (els.questLevel) els.questLevel.textContent = `Lv. ${approvedLevel}`;
   if (els.questStreak) els.questStreak.textContent = currentLang === "vi" ? `${streak} ngày` : `${streak}일`;
-  els.questProgressText.textContent = `${percent}%`;
-  els.questProgressFill.style.width = `${percent}%`;
+  if (els.questProgressText) els.questProgressText.textContent = `${percent}%`;
+  if (els.questProgressFill) els.questProgressFill.style.width = `${percent}%`;
   els.employeePhone?.setAttribute("data-quest-complete", percent >= 100 ? "true" : "false");
   updateQuestCardStates();
   updateEmotionFeedback(percent, levelUpLevel);
@@ -5070,12 +5351,8 @@ function renderEmployeeAwardCategory(board, isActive = false) {
 
 function configuredRankingSettings() {
   if (rankingVisibilityIsPrivate()) return [];
-  const rawRankings = Array.isArray(state.storeSettings?.rankingSettings) ? state.storeSettings.rankingSettings : [];
-  const disabledIds = new Set(rawRankings.filter((item) => toBoolean(item?.enabled, true) === false).map((item) => String(item?.id || "").trim()).filter(Boolean));
-  const disabledTitles = new Set(rawRankings.filter((item) => toBoolean(item?.enabled, true) === false).map((item) => String(item?.title || "").trim()).filter(Boolean));
   return normalizeRankingSettings(state.storeSettings?.rankingSettings, normalizePerformanceItems(state.storeSettings?.performanceItems))
     .filter((item) => toBoolean(item.enabled, true))
-    .filter((item) => !disabledIds.has(item.id) && !disabledTitles.has(item.title))
     .filter((item) => rankingMissionIsActive(item));
 }
 
@@ -5087,8 +5364,9 @@ function rankingMissionIsActive(ranking) {
   const missionIds = new Set(ranking?.missionIds || []);
   if (!missionIds.size) return false;
   if (missionIds.has("praise")) return true;
+  if (missionIds.has("hall-performance")) return true;
+  if (missionIds.has("kitchen-performance")) return true;
   const items = allPerformanceItems().filter((item) => toBoolean(item.enabled, true));
-  if (missionIds.has("kitchen-performance") && items.some((item) => item.role === "kitchen")) return true;
   if (missionIds.has("marketer-performance") && items.some((item) => item.role === "marketer")) return true;
   return items.some((item) => missionIds.has(item.id));
 }
@@ -5137,6 +5415,111 @@ function currentRankingCandidate(person) {
   };
 }
 
+function renderPerformanceCandidateStrip(person) {
+  const chips = buildPerformanceCandidateChips(person);
+  if (!chips.length) return "";
+  return `
+    <section class="performance-candidate-strip" aria-label="${currentLang === "vi" ? "Ứng viên tháng này" : "이번달 후보"}">
+      <div class="performance-candidate-head">
+        <small>${currentLang === "vi" ? "Tháng này" : "이번달 후보"}</small>
+        <strong>${currentLang === "vi" ? "Vị trí của tôi" : "내 위치만 보기"}</strong>
+      </div>
+      <div class="performance-candidate-chips">
+        ${chips.map((chip) => `
+          <button type="button" data-jump-tab="performance" class="performance-candidate-chip">
+            <span aria-hidden="true">${escapeHtml(chip.mark)}</span>
+            <b>${escapeHtml(chip.title)}</b>
+            <small><em>${escapeHtml(chip.rankText)}</em>${escapeHtml(chip.valueText)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function buildPerformanceCandidateChips(person) {
+  if (!person) return [];
+  const entries = monthlyActivityEntries();
+  const roleKey = performanceRoleKey(person.role);
+  const chips = [];
+  const roleItems = performanceItemsForRole(roleKey).filter((item) => toBoolean(item.enabled, true));
+  if (roleItems.length && (roleKey === "hall" || roleKey === "kitchen")) {
+    chips.push(candidateChipFromRows({
+      title: roleKingTitle(roleKey),
+      mark: roleKingMark(roleKey),
+      rows: buildRoleKingRows(roleKey, roleItems, entries),
+      person,
+    }));
+  }
+  if (questEnabled("help")) {
+    chips.push(candidateChipFromRows({
+      title: currentLang === "vi" ? "Vua khen ngợi" : "칭찬왕",
+      mark: "💚",
+      rows: buildPraiseBoardRows(entries),
+      person,
+    }));
+  }
+  return chips.filter(Boolean).slice(0, 2);
+}
+
+function candidateChipFromRows({ title, mark, rows, person }) {
+  const myRow = rows.find((row) => row.id === person.id);
+  const value = Number(myRow?.value || 0);
+  const unit = currentLang === "vi" ? "lần" : "건";
+  return {
+    title,
+    mark,
+    rankText: value > 0 && myRow?.rankNo
+      ? (currentLang === "vi" ? `Hạng ${myRow.rankNo}` : `${myRow.rankNo}위`)
+      : (currentLang === "vi" ? "Chờ" : "대기"),
+    valueText: value > 0
+      ? `${value.toLocaleString()}${unit}`
+      : (currentLang === "vi" ? "0 lần" : "0건"),
+  };
+}
+
+function buildRoleKingRows(roleKey, roleItems, entries) {
+  const itemIds = roleItems.map((item) => item.id);
+  return activeStaff()
+    .filter((person) => !isManagerRole(person.role))
+    .filter((person) => performanceRoleKey(person.role) === roleKey)
+    .map((person, index) => {
+      const personEntries = entries.filter((entry) => entry.staffId === person.id);
+      const value = personEntries.reduce((sum, entry) => (
+        sum + itemIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0)
+      ), 0);
+      return {
+        id: person.id,
+        name: visibleStaffName(person, index),
+        role: person.role,
+        value,
+      };
+    })
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+    .map((row, index) => ({ ...row, rankNo: index + 1 }));
+}
+
+function performanceRoleKey(role) {
+  if (isKitchenRole(role)) return "kitchen";
+  if (isMarketerRole(role)) return "marketer";
+  return "hall";
+}
+
+function roleKingTitle(roleKey) {
+  if (currentLang === "vi") {
+    if (roleKey === "kitchen") return "Vua bếp";
+    return "Vua sảnh";
+  }
+  if (roleKey === "kitchen") return "주방왕";
+  return "홀왕";
+}
+
+function roleKingMark(roleKey) {
+  if (roleKey === "kitchen") return "🍳";
+  if (roleKey === "marketer") return "📣";
+  return "🏅";
+}
+
 function buildEmployeePerformanceBoards() {
   const entries = monthlyActivityEntries();
   return configuredRankingSettings().map((ranking) => ({
@@ -5153,6 +5536,7 @@ function rankingMissionMeta(ranking) {
   const ids = new Set(ranking?.missionIds || []);
   const items = allPerformanceItems().filter((item) => ids.has(item.id));
   if (ids.has("praise")) return currentLang === "vi" ? "Được đồng đội khen" : "동료에게 받은 칭찬";
+  if (ids.has("hall-performance")) return currentLang === "vi" ? "Tất cả nhiệm vụ sảnh đang bật" : "켜진 홀 성과 전체";
   if (ids.has("kitchen-performance")) return currentLang === "vi" ? "Nhiệm vụ vệ sinh đang bật" : "켜진 청소 성과 전체";
   if (ids.has("marketer-performance")) return currentLang === "vi" ? "Nhiệm vụ marketing đang bật" : "켜진 마케팅 성과 전체";
   return items.map((item) => performanceItemLabel(item)).join(" + ") || (currentLang === "vi" ? "Thành tích" : "성과 미션");
@@ -5181,6 +5565,10 @@ function rankingValueForEntries(ranking, personEntries, personId, allEntries = [
   if (missionIds.has("praise")) {
     total += allEntries.filter((entry) => entry.helpType === personId).length;
   }
+  if (missionIds.has("hall-performance")) {
+    const hallIds = performanceItemsForRole("hall").map((item) => item.id);
+    total += personEntries.reduce((sum, entry) => sum + hallIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0), 0);
+  }
   if (missionIds.has("kitchen-performance")) {
     total += personEntries.reduce((sum, entry) => sum + specialCleanCountFromEntry(entry), 0);
   }
@@ -5188,7 +5576,7 @@ function rankingValueForEntries(ranking, personEntries, personId, allEntries = [
     const marketerIds = performanceItemsForRole("marketer").map((item) => item.id);
     total += personEntries.reduce((sum, entry) => sum + marketerIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0), 0);
   }
-  const directIds = [...missionIds].filter((id) => !["praise", "kitchen-performance", "marketer-performance"].includes(id));
+  const directIds = [...missionIds].filter((id) => !["praise", "hall-performance", "kitchen-performance", "marketer-performance"].includes(id));
   total += personEntries.reduce((sum, entry) => (
     sum + directIds.reduce((inner, id) => inner + performanceCountFromEntry(entry, id), 0)
   ), 0);
@@ -5472,7 +5860,7 @@ function readSeenLevels() {
 }
 
 function saveSeenLevels(levels) {
-  localStorage.setItem(levelSeenStorageKey, JSON.stringify(levels));
+  safeLocalStorageSet(levelSeenStorageKey, JSON.stringify(levels));
 }
 
 function activeLevelUpLevel(person) {
@@ -5613,7 +6001,6 @@ function lockedStaff() {
   if (!person) {
     const canonical = canonicalStaffFromLegacyLink();
     if (canonical) return canonical;
-    if (cloudStaffLoaded) return undefined;
     return lockedStaffFromUrl();
   }
   if (person.accessToken && lockedStaffToken !== person.accessToken) return undefined;
@@ -5689,10 +6076,14 @@ function normalizeStaff(savedStaff) {
 }
 
 function normalizeStoreSettings(settings) {
-  const performanceItems = normalizePerformanceItems(settings?.performanceItems);
+  const performanceItems = normalizePerformanceItems(settings?.performanceItems || settings?.rolePerformanceSettings);
+  const rankingVisibility = ["top3", "all"].includes(settings?.rankingVisibility)
+    ? settings.rankingVisibility
+    : defaultStoreSettings.rankingVisibility;
   return {
     ...defaultStoreSettings,
     ...(settings || {}),
+    rankingVisibility,
     operationPoints: normalizeOperationPoints(settings?.operationPoints),
     dailyOperationPoints: normalizeOptionalOperationPoints(settings?.dailyOperationPoints),
     dailyOperationDate: String(settings?.dailyOperationDate || "").trim(),
@@ -5746,30 +6137,61 @@ function normalizePerformanceList(list, fallback, role) {
 function normalizeRankingSettings(value, performanceItems = normalizePerformanceItems(state.storeSettings?.performanceItems)) {
   const allowedIds = new Set([
     ...Object.values(performanceItems).flat().map((item) => item.id),
+    "hall-performance",
     "kitchen-performance",
     "marketer-performance",
     "praise",
   ]);
-  const source = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const sourceValue = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const coreIds = new Set(defaultRankingSettings.map((item) => item.id));
+  const coreTitles = new Set(defaultRankingSettings.map((item) => item.title));
+  const legacyIds = new Set(["review-award", "upsell-award", "cleaning-award", "marketing-award"]);
+  const legacyTitles = new Set(["리뷰왕", "업셀왕", "청소왕", "마케팅왕", "업셀/판매왕"]);
+  const hasCoreRanking = sourceValue.some((item) => coreIds.has(String(item?.id || "")) || coreTitles.has(String(item?.title || "")));
+  const hasLegacyRanking = sourceValue.some((item) => legacyIds.has(String(item?.id || "")) || legacyTitles.has(String(item?.title || "")));
+  const source = hasLegacyRanking && !hasCoreRanking ? defaultRankingSettings : sourceValue;
   const normalized = source
     .map((item, index) => {
-      const fallback = defaultRankingSettings[index] || defaultRankingSettings[0];
-      const missionIds = Array.isArray(item?.missionIds)
+      const itemId = String(item?.id || "").trim();
+      const itemTitle = String(item?.title || "").trim();
+      const coreFallback = defaultRankingSettings.find((preset) => preset.id === itemId || preset.title === itemTitle);
+      const fallback = coreFallback || defaultRankingSettings[index] || defaultRankingSettings[0];
+      const missionIds = coreFallback
+        ? coreFallback.missionIds
+        : Array.isArray(item?.missionIds)
         ? item.missionIds
         : [item?.missionId || fallback?.missionIds?.[0] || "praise"];
       return {
-        id: String(item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
-        title: String(item?.title || fallback?.title || "").trim(),
-        role: ["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all"),
+        id: String(coreFallback?.id || item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
+        title: String(coreFallback?.title || item?.title || fallback?.title || "").trim(),
+        role: coreFallback?.role || (["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all")),
         missionIds: missionIds.map((id) => String(id || "").trim()).filter((id) => allowedIds.has(id)).slice(0, 4),
         enabled: toBoolean(item?.enabled, true),
-        cheer: String(item?.cheer || fallback?.cheer || "").trim(),
+        cheer: String(coreFallback?.cheer || item?.cheer || fallback?.cheer || "").trim(),
         monthlyTrophy: toBoolean(item?.monthlyTrophy, true),
-        mark: String(item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
+        mark: String(coreFallback?.mark || item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
       };
     })
-    .filter((item) => item.id && item.title && item.missionIds.length);
-  return normalized.length ? normalized : defaultRankingSettings.map((item) => ({ ...item, missionIds: [...item.missionIds] }));
+    .filter((item) => item.id && item.title && item.missionIds.length)
+    .filter((item) => !legacyIds.has(item.id) && !legacyTitles.has(item.title));
+  const coreRankings = defaultRankingSettings.map((fallback) => {
+    const existing = normalized.find((item) => item.id === fallback.id || item.title === fallback.title);
+    return {
+      ...(existing || fallback),
+      id: fallback.id,
+      title: fallback.title,
+      role: fallback.role,
+      missionIds: [...fallback.missionIds],
+      cheer: fallback.cheer,
+      mark: fallback.mark,
+      enabled: existing ? toBoolean(existing.enabled, true) : toBoolean(fallback.enabled, true),
+      monthlyTrophy: existing ? toBoolean(existing.monthlyTrophy, true) : toBoolean(fallback.monthlyTrophy, true),
+    };
+  });
+  const customRankings = normalized.filter((item) => !defaultRankingSettings.some((fallback) => (
+    item.id === fallback.id || item.title === fallback.title
+  )));
+  return [...coreRankings, ...customRankings];
 }
 
 function normalizeCustomQuests(value) {
@@ -5953,7 +6375,7 @@ function roleLabel(role) {
 
 function setLanguage(lang) {
   currentLang = lang === "vi" ? "vi" : "ko";
-  localStorage.setItem(langStorageKey, currentLang);
+  safeLocalStorageSet(langStorageKey, currentLang);
   applyLanguage();
   renderStaffOptions();
   updateRoleFields();

@@ -39,7 +39,18 @@ async function loadStateFromCloud() {
   });
   if (!response.ok) throw new Error("Supabase state load failed");
   const rows = await response.json();
-  return rows[0]?.data || null;
+  const state = rows[0]?.data || null;
+  if (!state) return null;
+  try {
+    const selfChecks = await loadSelfCheckEntriesFromCloud();
+    return {
+      ...state,
+      selfChecks: mergeCloudSelfCheckEntries(state.selfChecks, selfChecks),
+    };
+  } catch (error) {
+    console.warn("Supabase self-check row load skipped", error);
+    return state;
+  }
 }
 
 async function saveStateToCloud(state) {
@@ -60,6 +71,105 @@ async function saveStateToCloud(state) {
     }),
   });
   if (!response.ok) throw new Error("Supabase state save failed");
+}
+
+function cloudSelfCheckPrefix(storeStateId = currentCloudStateId()) {
+  return `selfcheck:${storeStateId}:`;
+}
+
+function cloudSelfCheckEntryId(entry, storeStateId = currentCloudStateId()) {
+  const date = String(entry?.date || "").trim();
+  const staffId = String(entry?.staffId || "").trim();
+  if (!date || !staffId) return "";
+  return `${cloudSelfCheckPrefix(storeStateId)}${date}:${staffId}`;
+}
+
+async function loadSelfCheckEntriesFromCloud(storeStateId = currentCloudStateId()) {
+  if (!cloudEnabled()) return [];
+  const config = cloudConfig();
+  const prefix = `${encodeURIComponent(cloudSelfCheckPrefix(storeStateId))}*`;
+  const response = await fetch(`${config.url}/rest/v1/${cloudStateTable}?id=like.${prefix}&select=id,data,updated_at`, {
+    headers: cloudHeaders(config),
+  });
+  if (!response.ok) throw new Error("Supabase self-check row load failed");
+  const rows = await response.json();
+  return rows
+    .map((row) => normalizeCloudSelfCheckEntry(row?.data, row))
+    .filter(Boolean);
+}
+
+async function saveSelfCheckEntryToCloud(entry) {
+  if (!cloudEnabled()) return true;
+  const rowId = cloudSelfCheckEntryId(entry);
+  if (!rowId) throw new Error("Self-check row requires date and staffId");
+  const config = cloudConfig();
+  const now = new Date().toISOString();
+  const data = {
+    ...entry,
+    updatedAt: entry.updatedAt || now,
+    cloudRowId: rowId,
+  };
+  const response = await fetch(`${config.url}/rest/v1/${cloudStateTable}`, {
+    method: "POST",
+    headers: {
+      ...cloudHeaders(config),
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({
+      id: rowId,
+      data,
+      updated_at: data.updatedAt,
+    }),
+  });
+  if (!response.ok) throw new Error("Supabase self-check row save failed");
+  return true;
+}
+
+async function markSelfCheckEntryDeletedInCloud(entry) {
+  if (!entry) return true;
+  return saveSelfCheckEntryToCloud({
+    ...entry,
+    status: "deleted",
+    deletedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function normalizeCloudSelfCheckEntry(entry, row = {}) {
+  if (!entry || typeof entry !== "object") return null;
+  return {
+    ...entry,
+    updatedAt: entry.updatedAt || row.updated_at || entry.submittedAt || entry.createdAt || "",
+    cloudRowId: entry.cloudRowId || row.id || "",
+  };
+}
+
+function cloudSelfCheckMergeKey(entry) {
+  if (!entry) return "";
+  return entry.id || `${entry.date || ""}::${entry.staffId || ""}`;
+}
+
+function cloudSelfCheckVersionTime(entry) {
+  const value = entry?.deletedAt || entry?.updatedAt || entry?.approvedAt || entry?.rejectedAt || entry?.submittedAt || entry?.createdAt || "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeCloudSelfCheckEntries(...entryLists) {
+  const map = new Map();
+  entryLists.flat().forEach((entry) => {
+    const normalized = normalizeCloudSelfCheckEntry(entry);
+    const key = cloudSelfCheckMergeKey(normalized);
+    if (!key) return;
+    const previous = map.get(key);
+    if (!previous || cloudSelfCheckVersionTime(normalized) >= cloudSelfCheckVersionTime(previous)) {
+      map.set(key, normalized);
+    }
+  });
+  return [...map.values()]
+    .filter((entry) => entry.status !== "deleted")
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
 }
 
 function cloudHeaders(config) {

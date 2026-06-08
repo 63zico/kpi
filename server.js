@@ -14,6 +14,7 @@ const types = {
   ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".svg": "image/svg+xml; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
 const server = http.createServer((request, response) => {

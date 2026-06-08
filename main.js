@@ -1,4 +1,4 @@
-﻿const storageKey = "doya-kpi-levelup-v2";
+const storageKey = "doya-kpi-levelup-v2";
 const levelXpThresholds = [0, 100, 250, 500, 900, 1400, 2000, 2800, 3800, 5000];
 const teamReviewTarget = 30;
 const specialCleanAreas = [
@@ -57,7 +57,7 @@ const defaultStoreSettings = {
   industry: "restaurant",
   template: "korean-restaurant",
   defaultLanguage: "ko",
-  rankingVisibility: "private",
+  rankingVisibility: "top3",
   bonusEnabled: false,
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
@@ -96,17 +96,18 @@ const defaultPerformanceItems = {
 };
 
 const defaultRankingSettings = [
-  { id: "review-award", title: "리뷰왕", role: "hall", missionIds: ["reviewPoint"], enabled: true, monthlyTrophy: true, mark: "⭐" },
-  { id: "upsell-award", title: "업셀왕", role: "hall", missionIds: ["upsellPoint", "recommendedMenuPoint"], enabled: true, monthlyTrophy: true, mark: "⚡" },
-  { id: "praise-award", title: "칭찬왕", role: "all", missionIds: ["praise"], enabled: true, monthlyTrophy: true, mark: "💬" },
-  { id: "cleaning-award", title: "청소왕", role: "kitchen", missionIds: ["kitchen-performance"], enabled: true, monthlyTrophy: true, mark: "✨" },
-  { id: "marketing-award", title: "마케팅왕", role: "marketer", missionIds: ["marketer-performance"], enabled: true, monthlyTrophy: true, mark: "📣" },
+  { id: "hall-award", title: "홀왕", role: "hall", missionIds: ["hall-performance"], enabled: true, monthlyTrophy: true, mark: "🏅", cheer: "고객 응대와 판매 성과를 차곡차곡 모아봐요." },
+  { id: "kitchen-award", title: "주방왕", role: "kitchen", missionIds: ["kitchen-performance"], enabled: true, monthlyTrophy: true, mark: "🍳", cheer: "주방 구역을 하나씩 클리어해요." },
+  { id: "praise-award", title: "칭찬왕", role: "all", missionIds: ["praise"], enabled: true, monthlyTrophy: true, mark: "💚", cheer: "동료에게 받은 고마움도 멋진 성과예요." },
 ];
 
 let state = loadState();
 let staff = normalizeStaff(state.staff);
 let activeLogTab = "personal";
 let activeAdminView = adminViewFromHash(window.location.hash) || "today";
+let activePerformancePeriod = "week";
+let adminCloudSyncInFlight = false;
+let adminCloudAutoRefreshStarted = false;
 
 function appStorageKey() {
   return window.LeveloveAuth?.stateStorageKey?.(storageKey) || storageKey;
@@ -207,6 +208,8 @@ const els = {
   todayCheckHeadline: document.querySelector("#todayCheckHeadline"),
   todayCheckSubline: document.querySelector("#todayCheckSubline"),
   todayCheckList: document.querySelector("#todayCheckList"),
+  todayEvaluationBadge: document.querySelector("#todayEvaluationBadge"),
+  todayEvaluationList: document.querySelector("#todayEvaluationList"),
   adminOnboardingPanel: document.querySelector("#adminOnboardingPanel"),
   adminOnboardingForm: document.querySelector("#adminOnboardingForm"),
   onboardingStoreName: document.querySelector("#onboardingStoreName"),
@@ -222,6 +225,9 @@ const els = {
   logTabButtons: [...document.querySelectorAll("[data-log-tab]")],
   personalLogPanel: document.querySelector("#personalLogPanel"),
   teamLogPanel: document.querySelector("#teamLogPanel"),
+  performancePeriodButtons: [...document.querySelectorAll("[data-performance-period]")],
+  performancePointRankList: document.querySelector("#performancePointRankList"),
+  kpiRankList: document.querySelector("#kpiRankList"),
   testStaffSelect: document.querySelector("#testStaffSelect"),
   testStaffCount: document.querySelector("#testStaffCount"),
   testToolStatus: document.querySelector("#testToolStatus"),
@@ -261,6 +267,9 @@ function init() {
   els.logTabButtons.forEach((button) => {
     button.addEventListener("click", () => setLogTab(button.dataset.logTab));
   });
+  els.performancePeriodButtons.forEach((button) => {
+    button.addEventListener("click", () => setPerformancePeriod(button.dataset.performancePeriod));
+  });
   els.adminViewButtons.forEach((button) => {
     button.addEventListener("click", () => setAdminView(button.dataset.adminView, { updateHash: true }));
   });
@@ -281,6 +290,7 @@ function init() {
   renderAdminOnboarding();
   render();
   syncCloudState();
+  startAdminCloudAutoRefresh();
 }
 
 function adminViewFromHash(hash) {
@@ -288,15 +298,16 @@ function adminViewFromHash(hash) {
   const viewMap = {
     approvalPanel: "approval",
     performanceRankingPanel: "ranking",
+    staffPerformanceSummaryPanel: "logs",
     logPanel: "logs",
     teamForm: "team",
   };
-  if (["today", "approval", "team", "ops", "logs"].includes(value)) return value;
+  if (["today", "approval", "ranking", "team", "ops", "logs"].includes(value)) return value;
   return viewMap[value] || "";
 }
 
 function setAdminView(view, options = {}) {
-  const nextView = ["today", "approval", "team", "ops", "logs"].includes(view) ? view : "today";
+  const nextView = ["today", "approval", "ranking", "team", "ops", "logs"].includes(view) ? view : "today";
   activeAdminView = nextView;
   document.body.dataset.adminView = nextView;
   els.adminViewButtons.forEach((button) => {
@@ -314,6 +325,9 @@ function setAdminView(view, options = {}) {
       dedupeKey: `${toInputDate(new Date())}:manager_review:${window.LeveloveAuth?.currentSession?.()?.userId || "manager"}`,
     });
   }
+  if (nextView === "today" || nextView === "approval") {
+    window.setTimeout(() => syncCloudState(), 0);
+  }
 }
 
 function setLogTab(tab) {
@@ -323,6 +337,14 @@ function setLogTab(tab) {
   });
   els.personalLogPanel.classList.toggle("is-hidden", activeLogTab !== "personal");
   els.teamLogPanel.classList.toggle("is-hidden", activeLogTab !== "team");
+}
+
+function setPerformancePeriod(period) {
+  activePerformancePeriod = period === "month" ? "month" : "week";
+  els.performancePeriodButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.performancePeriod === activePerformancePeriod);
+  });
+  renderStaffPerformanceSummary(activePerformancePeriod);
 }
 
 function loadState() {
@@ -379,6 +401,7 @@ async function saveStatePreservingCloudSelfChecks(snapshot) {
     }
     const nextState = {
       ...snapshot,
+      staff: mergeStaffForAdminSave(cloudState.staff, snapshot.staff),
       selfChecks: mergeSelfChecksForAdminSave(cloudState.selfChecks, snapshot.selfChecks),
       analyticsEvents: mergeAnalyticsEvents(cloudState.analyticsEvents, snapshot.analyticsEvents),
     };
@@ -388,8 +411,23 @@ async function saveStatePreservingCloudSelfChecks(snapshot) {
     saveStateEverywhere(nextState);
   } catch (error) {
     console.warn(error);
-    saveStateEverywhere(snapshot);
+    localStorage.setItem(appStorageKey(), JSON.stringify(snapshot));
   }
+}
+
+function mergeStaffForAdminSave(cloudStaff, localStaff) {
+  const cloud = Array.isArray(cloudStaff) ? cloudStaff : [];
+  const local = Array.isArray(localStaff) ? localStaff : [];
+  if (!cloud.length) return local;
+  const map = new Map();
+  cloud.forEach((person) => {
+    if (person?.id) map.set(person.id, person);
+  });
+  local.forEach((person) => {
+    if (!person?.id || map.has(person.id)) return;
+    map.set(person.id, person);
+  });
+  return [...map.values()];
 }
 
 function mergeSelfChecksForAdminSave(cloudChecks, localChecks) {
@@ -425,9 +463,11 @@ function trackAdminEvent(type, detail = {}) {
 }
 
 async function syncCloudState() {
+  if (adminCloudSyncInFlight) return false;
+  adminCloudSyncInFlight = true;
   try {
     const cloudState = await loadStateFromCloud();
-    if (!cloudState) return;
+    if (!cloudState) return false;
     const localAnalyticsEvents = state.analyticsEvents;
     state = {
       ...state,
@@ -447,9 +487,25 @@ async function syncCloudState() {
     updateTeamKpiLabels();
     renderAdminOnboarding();
     render();
+    return true;
   } catch (error) {
     console.warn(error);
+    return false;
+  } finally {
+    adminCloudSyncInFlight = false;
   }
+}
+
+function startAdminCloudAutoRefresh() {
+  if (adminCloudAutoRefreshStarted || typeof cloudEnabled !== "function" || !cloudEnabled()) return;
+  adminCloudAutoRefreshStarted = true;
+  window.setInterval(() => {
+    if (!document.hidden) syncCloudState();
+  }, 12000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncCloudState();
+  });
+  window.addEventListener("focus", () => syncCloudState());
 }
 
 function normalizeStaff(savedStaff) {
@@ -468,10 +524,14 @@ function normalizeBonusSettings(settings) {
 }
 
 function normalizeStoreSettings(settings) {
-  const performanceItems = normalizePerformanceItems(settings?.performanceItems);
+  const performanceItems = normalizePerformanceItems(settings?.performanceItems || settings?.rolePerformanceSettings);
+  const rankingVisibility = ["top3", "all"].includes(settings?.rankingVisibility)
+    ? settings.rankingVisibility
+    : defaultStoreSettings.rankingVisibility;
   return {
     ...defaultStoreSettings,
     ...(settings || {}),
+    rankingVisibility,
     operationPoints: normalizeOperationPoints(settings?.operationPoints),
     dailyOperationPoints: normalizeOptionalOperationPoints(settings?.dailyOperationPoints),
     dailyOperationDate: String(settings?.dailyOperationDate || "").trim(),
@@ -547,27 +607,58 @@ function normalizeRankingSettings(value, performanceItems = defaultPerformanceIt
   const allowedIds = new Set([
     ...Object.values(performanceItems).flat().map((item) => item.id),
     "praise",
+    "hall-performance",
     "kitchen-performance",
     "marketer-performance",
   ]);
-  const source = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const sourceValue = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const coreIds = new Set(defaultRankingSettings.map((item) => item.id));
+  const coreTitles = new Set(defaultRankingSettings.map((item) => item.title));
+  const legacyIds = new Set(["review-award", "upsell-award", "cleaning-award", "marketing-award"]);
+  const legacyTitles = new Set(["리뷰왕", "업셀왕", "청소왕", "마케팅왕", "업셀/판매왕"]);
+  const hasCoreRanking = sourceValue.some((item) => coreIds.has(String(item?.id || "")) || coreTitles.has(String(item?.title || "")));
+  const hasLegacyRanking = sourceValue.some((item) => legacyIds.has(String(item?.id || "")) || legacyTitles.has(String(item?.title || "")));
+  const source = hasLegacyRanking && !hasCoreRanking ? defaultRankingSettings : sourceValue;
   const normalized = source
     .map((item, index) => {
-      const fallback = defaultRankingSettings[index] || defaultRankingSettings[0];
-      const missionIds = Array.isArray(item?.missionIds) ? item.missionIds : [item?.missionId || fallback?.missionIds?.[0] || "praise"];
+      const itemId = String(item?.id || "").trim();
+      const itemTitle = String(item?.title || "").trim();
+      const coreFallback = defaultRankingSettings.find((preset) => preset.id === itemId || preset.title === itemTitle);
+      const fallback = coreFallback || defaultRankingSettings[index] || defaultRankingSettings[0];
+      const missionIds = coreFallback
+        ? coreFallback.missionIds
+        : Array.isArray(item?.missionIds) ? item.missionIds : [item?.missionId || fallback?.missionIds?.[0] || "praise"];
       return {
-        id: String(item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
-        title: String(item?.title || fallback?.title || "").trim(),
-        role: ["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all"),
+        id: String(coreFallback?.id || item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
+        title: String(coreFallback?.title || item?.title || fallback?.title || "").trim(),
+        role: coreFallback?.role || (["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all")),
         missionIds: missionIds.map((id) => String(id || "").trim()).filter((id) => allowedIds.has(id)).slice(0, 4),
         enabled: toBoolean(item?.enabled, true),
-        cheer: String(item?.cheer || fallback?.cheer || "").trim(),
+        cheer: String(coreFallback?.cheer || item?.cheer || fallback?.cheer || "").trim(),
         monthlyTrophy: toBoolean(item?.monthlyTrophy, true),
-        mark: String(item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
+        mark: String(coreFallback?.mark || item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
       };
     })
-    .filter((item) => item.id && item.title && item.missionIds.length);
-  return normalized.length ? normalized : defaultRankingSettings.map((item) => ({ ...item, missionIds: [...item.missionIds] }));
+    .filter((item) => item.id && item.title && item.missionIds.length)
+    .filter((item) => !legacyIds.has(item.id) && !legacyTitles.has(item.title));
+  const coreRankings = defaultRankingSettings.map((fallback) => {
+    const existing = normalized.find((item) => item.id === fallback.id || item.title === fallback.title);
+    return {
+      ...(existing || fallback),
+      id: fallback.id,
+      title: fallback.title,
+      role: fallback.role,
+      missionIds: [...fallback.missionIds],
+      cheer: fallback.cheer,
+      mark: fallback.mark,
+      enabled: existing ? toBoolean(existing.enabled, true) : toBoolean(fallback.enabled, true),
+      monthlyTrophy: existing ? toBoolean(existing.monthlyTrophy, true) : toBoolean(fallback.monthlyTrophy, true),
+    };
+  });
+  const customRankings = normalized.filter((item) => !defaultRankingSettings.some((fallback) => (
+    item.id === fallback.id || item.title === fallback.title
+  )));
+  return [...coreRankings, ...customRankings];
 }
 
 function normalizeOperationPoints(points) {
@@ -733,27 +824,28 @@ function render() {
   if (els.storeMetaDisplay) els.storeMetaDisplay.textContent = `${industryLabel(storeSettings.industry)} · ${templateLabel(storeSettings.template)}`;
   renderOperationPointSettings(storeSettings);
   renderTodayChecklist(storeSettings);
+  renderTodayStaffEvaluation();
   renderAdminOnboarding();
 
   renderAdminWorkspaceSummary(month, hallTeamAverage, kitchenTeamAverage);
+  renderWeeklyRanking(buildWeeklyRows());
+  renderPerformanceRankings(month);
   renderSelfCheckQueue();
+  renderStaffPerformanceSummary(activePerformancePeriod);
   renderPersonalLog(month);
   renderTeamLog(month);
 }
 
 function todayOperationsMetrics(date = toInputDate(new Date())) {
   const activeEmployees = activeStaff().filter((person) => !isManagerRole(person.role));
-  const activeEmployeeIds = new Set(activeEmployees.map((person) => person.id));
   const scheduledStaff = activeEmployees.filter((person) => isScheduledWorkDay(person, date));
   const scheduledIds = new Set(scheduledStaff.map((person) => person.id));
   const todayChecks = (state.selfChecks || []).filter((entry) => (
     entry.date === date &&
-    activeEmployeeIds.has(entry.staffId) &&
     entry.status !== "rejected"
   ));
   const todayApprovedEntries = (state.personalEntries || []).filter((entry) => (
-    entry.date === date &&
-    activeEmployeeIds.has(entry.staffId)
+    entry.date === date
   ));
   const checkedInIds = new Set();
   const submittedIds = new Set();
@@ -770,13 +862,12 @@ function todayOperationsMetrics(date = toInputDate(new Date())) {
     approvedIds.add(entry.staffId);
   });
 
-  const scheduledSubmittedIds = new Set([...submittedIds].filter((staffId) => scheduledIds.has(staffId)));
   return {
     scheduled: scheduledIds.size,
     checkedIn: checkedInIds.size,
     submitted: submittedIds.size,
     approved: approvedIds.size,
-    missing: Math.max(0, scheduledIds.size - scheduledSubmittedIds.size),
+    missing: Math.max(0, scheduledIds.size - submittedIds.size),
   };
 }
 
@@ -830,6 +921,121 @@ function renderTodayChecklist(storeSettings = normalizeStoreSettings(state.store
   `).join("");
 }
 
+function renderTodayStaffEvaluation(date = toInputDate(new Date())) {
+  if (!els.todayEvaluationList) return;
+  const rows = buildTodayStaffEvaluationRows(date);
+  const approvedCount = rows.filter((row) => row.statusKey === "approved").length;
+  const pendingCount = rows.filter((row) => row.statusKey === "pending").length;
+  const liveCount = rows.filter((row) => row.statusKey === "live").length;
+  if (els.todayEvaluationBadge) {
+    els.todayEvaluationBadge.textContent = rows.length
+      ? `승인 ${approvedCount} · 대기 ${pendingCount} · 진행 ${liveCount}`
+      : "직원 없음";
+  }
+  if (!rows.length) {
+    els.todayEvaluationList.innerHTML = `<div class="empty-state">오늘 평가할 직원이 없습니다. 직원 원본 관리에서 직원을 추가하세요.</div>`;
+    return;
+  }
+  els.todayEvaluationList.innerHTML = rows.map(renderTodayEvaluationCard).join("");
+}
+
+function buildTodayStaffEvaluationRows(date) {
+  const employees = activeStaff().filter((person) => !isManagerRole(person.role));
+  const todayChecks = (state.selfChecks || []).filter((entry) => entry.date === date && entry.status !== "rejected");
+  const todayApprovedEntries = (state.personalEntries || []).filter((entry) => entry.date === date);
+
+  return employees.map((person) => {
+    const personChecks = todayChecks
+      .filter((entry) => entry.staffId === person.id)
+      .sort((a, b) => selfCheckSortKey(b).localeCompare(selfCheckSortKey(a)));
+    const latestCheck = personChecks[0] || null;
+    const approvedEntry = todayApprovedEntries.find((entry) => entry.staffId === person.id) || null;
+    const sourceEntry = approvedEntry || latestCheck;
+    const scheduled = isScheduledWorkDay(person, date);
+    const status = todayEvaluationStatus(latestCheck, approvedEntry, scheduled);
+    const missionItems = sourceEntry ? approvalMissionItems(sourceEntry) : [];
+    const performancePoints = sourceEntry ? getPerformancePoints(sourceEntry) : 0;
+    const levoXp = approvedEntry
+      ? Number(approvedEntry.approvedXp || estimateApprovedXp(approvedEntry) || 0)
+      : latestCheck
+        ? calculateSelfCheckApprovedXp(latestCheck)
+        : 0;
+
+    return {
+      person,
+      statusKey: status.key,
+      statusLabel: status.label,
+      scheduled,
+      attendanceDone: Boolean(approvedEntry?.worked || approvedEntry?.attendanceTime || latestCheck?.attendance || latestCheck?.attendanceTime),
+      submittedDone: Boolean(approvedEntry || latestCheck?.status === "pending" || latestCheck?.status === "approved"),
+      approvedDone: Boolean(approvedEntry || latestCheck?.status === "approved"),
+      performancePoints,
+      levoXp,
+      missions: missionItems.slice(0, 4),
+      hiddenMissionCount: Math.max(0, missionItems.length - 4),
+      summary: sourceEntry ? selfCheckSummary(sourceEntry) : scheduled ? "오늘 제출 기록 없음" : "오늘 근무 예정 없음",
+    };
+  }).sort((a, b) => todayEvaluationPriority(a) - todayEvaluationPriority(b) || a.person.name.localeCompare(b.person.name));
+}
+
+function selfCheckSortKey(entry) {
+  return `${entry?.updatedAt || entry?.submittedAt || entry?.createdAt || ""}:${entry?.id || ""}`;
+}
+
+function todayEvaluationStatus(check, approvedEntry, scheduled) {
+  if (approvedEntry || check?.status === "approved") return { key: "approved", label: "승인 완료" };
+  if (check?.status === "pending") return { key: "pending", label: "승인 대기" };
+  if (check?.status === "live") return { key: "live", label: "진행 중" };
+  if (scheduled) return { key: "missing", label: "미제출" };
+  return { key: "off", label: "휴무" };
+}
+
+function todayEvaluationPriority(row) {
+  const order = { pending: 0, live: 1, missing: 2, approved: 3, off: 4 };
+  return order[row.statusKey] ?? 9;
+}
+
+function renderTodayEvaluationCard(row) {
+  const missionHtml = row.missions.length
+    ? row.missions.map((mission) => `<span>${escapeHtml(mission.label)} <b>+${Number(mission.points || 0)}P</b></span>`).join("")
+    : `<span class="is-muted">성과 미션 없음</span>`;
+  const hiddenHtml = row.hiddenMissionCount
+    ? `<span class="is-muted">+${row.hiddenMissionCount}개 더 있음</span>`
+    : "";
+  return `
+    <article class="today-evaluation-card is-${escapeHtml(row.statusKey)}">
+      <div class="today-evaluation-card-head">
+        <div>
+          <p>${escapeHtml(roleLabel(row.person.role))}</p>
+          <h3>${escapeHtml(row.person.name)}</h3>
+        </div>
+        <strong class="today-evaluation-status">${escapeHtml(row.statusLabel)}</strong>
+      </div>
+      <div class="today-evaluation-metrics">
+        ${renderTodayEvaluationMetric("출근", row.attendanceDone ? "완료" : "대기", row.attendanceDone)}
+        ${renderTodayEvaluationMetric("제출", row.submittedDone ? "완료" : "대기", row.submittedDone)}
+        ${renderTodayEvaluationMetric("승인", row.approvedDone ? "완료" : "대기", row.approvedDone)}
+        <span><small>성과P</small><strong>${Number(row.performancePoints || 0)}P</strong></span>
+        <span><small>LEVO XP</small><strong>${Number(row.levoXp || 0)}XP</strong></span>
+      </div>
+      <div class="today-evaluation-missions">
+        ${missionHtml}
+        ${hiddenHtml}
+      </div>
+      <p class="today-evaluation-summary">${escapeHtml(row.summary || "-")}</p>
+    </article>
+  `;
+}
+
+function renderTodayEvaluationMetric(label, value, done) {
+  return `
+    <span class="${done ? "is-done" : ""}">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(value)}</strong>
+    </span>
+  `;
+}
+
 function renderAdminWorkspaceSummary(month, hallTeamAverage, kitchenTeamAverage) {
   const visibleChecks = (state.selfChecks || []).filter((entry) => entry.status === "pending" || entry.status === "live");
   const pendingCount = visibleChecks.filter((entry) => entry.status === "pending").length;
@@ -850,6 +1056,68 @@ function renderAdminWorkspaceSummary(month, hallTeamAverage, kitchenTeamAverage)
       : `0 / ${teamConfig.primaryTarget}`;
   }
   if (els.logNavCount) els.logNavCount.textContent = `${personalCount + teamCount}건`;
+}
+
+function renderStaffPerformanceSummary(period = "week") {
+  if (!els.performancePointRankList || !els.kpiRankList) return;
+  const rows = buildStaffPerformanceSummaryRows(period);
+  els.performancePointRankList.innerHTML = renderStaffScoreRanking(rows, "points");
+  els.kpiRankList.innerHTML = renderStaffScoreRanking(rows, "kpi");
+}
+
+function buildStaffPerformanceSummaryRows(period = "week") {
+  const range = periodDateRange(period === "month" ? "month" : "week", toInputDate(new Date()));
+  return activeStaff()
+    .filter((person) => !isManagerRole(person.role))
+    .map((person) => {
+      const entries = (state.personalEntries || []).filter((entry) => (
+        entry.staffId === person.id &&
+        entry.worked &&
+        entry.date >= range.start &&
+        entry.date <= range.end
+      ));
+      const scores = entries.map((entry) => calculatePersonalDaily(entry, entry.role || person.role).total);
+      const kpiAverage = scores.length ? average(scores) : 0;
+      const performancePoints = entries.reduce((sum, entry) => sum + getPerformancePoints(entry), 0);
+      return {
+        id: person.id,
+        name: person.name,
+        role: person.role,
+        kpiAverage,
+        performancePoints,
+        entryCount: entries.length,
+      };
+    });
+}
+
+function renderStaffScoreRanking(rows, mode) {
+  const ranked = [...rows]
+    .filter((row) => row.entryCount > 0 || row.performancePoints > 0 || row.kpiAverage > 0)
+    .sort((a, b) => {
+      if (mode === "kpi") {
+        return b.kpiAverage - a.kpiAverage || b.performancePoints - a.performancePoints || a.name.localeCompare(b.name);
+      }
+      return b.performancePoints - a.performancePoints || b.kpiAverage - a.kpiAverage || a.name.localeCompare(b.name);
+    })
+    .slice(0, 10);
+  if (!ranked.length) {
+    return `<div class="empty-state compact">아직 승인된 성과 기록이 없습니다.</div>`;
+  }
+  return `
+    <ol class="staff-score-ranking">
+      ${ranked.map((row, index) => `
+        <li>
+          <span>${index + 1}</span>
+          <div>
+            <strong>${escapeHtml(row.name)}</strong>
+            <small>${escapeHtml(roleLabel(row.role))}</small>
+          </div>
+          <em>${mode === "kpi" ? formatScore(row.kpiAverage) : `${Number(row.performancePoints || 0)}P`}</em>
+          <small>${mode === "kpi" ? `${Number(row.performancePoints || 0)}P` : `KPI ${formatScore(row.kpiAverage)}`}</small>
+        </li>
+      `).join("")}
+    </ol>
+  `;
 }
 
 function industryLabel(value) {
@@ -905,45 +1173,35 @@ function renderWeeklyRanking(rows) {
 function renderPerformanceRankings(month) {
   if (!els.performanceRankingBoard) return;
   const entries = monthEntries(state.personalEntries || [], month);
+  const hallItems = performanceItemsForRole("hall").filter((item) => toBoolean(item.enabled, true));
+  const kitchenItems = performanceItemsForRole("kitchen").filter((item) => toBoolean(item.enabled, true));
+  const countPerformanceItems = (entry, items) => items.reduce((sum, item) => sum + performanceCountFromEntry(entry, item.id), 0);
   const boards = [
     {
-      title: "리뷰왕",
-      meta: "리뷰 등록 수",
+      title: "홀왕",
+      meta: "홀 성과 미션 전체",
       unit: "건",
-      rows: buildPerformanceRankingRows(entries, (entry) => Number(entry.reviewPoint || 0) + Number(entry.membershipPoint || 0), (entry) => ({
-        review: Number(entry.reviewPoint || 0),
-        membership: Number(entry.membershipPoint || 0),
-      })),
-      detail: (parts) => `리뷰 ${parts.review || 0} · 멤버십 ${parts.membership || 0}`,
+      rows: buildPerformanceRankingRows(
+        entries,
+        (entry) => isHallRole(entry.role) ? countPerformanceItems(entry, hallItems) : 0,
+      ).filter((row) => isHallRole(row.role)),
+      detail: () => "리뷰 · 업셀 · 멤버십 · 추천",
     },
     {
-      title: "업셀/판매왕",
-      meta: "업셀 + 추천메뉴 판매",
+      title: "주방왕",
+      meta: "주방 성과 미션 전체",
       unit: "건",
-      rows: buildPerformanceRankingRows(entries, (entry) => Number(entry.upsellPoint || 0) + Number(entry.recommendedMenuPoint || 0), (entry) => ({
-        upsell: Number(entry.upsellPoint || 0),
-        recommended: Number(entry.recommendedMenuPoint || 0),
-      })),
-      detail: (parts) => `업셀 ${parts.upsell || 0} · 추천 ${parts.recommended || 0}`,
+      rows: buildPerformanceRankingRows(
+        entries,
+        (entry) => isKitchenRole(entry.role) ? countPerformanceItems(entry, kitchenItems) : 0,
+      ).filter((row) => isKitchenRole(row.role)),
+      detail: () => "청소 · 정리 · 구역 클리어",
     },
     {
       title: "칭찬왕",
       meta: "동료에게 받은 칭찬",
       unit: "회",
       rows: buildPraiseRankingRows(entries),
-    },
-    {
-      title: "청소왕",
-      meta: "주방 특수 청소 건수",
-      unit: "건",
-      rows: buildPerformanceRankingRows(
-        entries,
-        (entry) => isKitchenRole(entry.role) ? Number(entry.hygieneFixPoint || 0) : 0,
-        (entry) => isKitchenRole(entry.role) ? ({
-          count: Number(entry.hygieneFixPoint || 0),
-        }) : {}
-      ).filter((row) => isKitchenRole(row.role)),
-      detail: (parts) => `청소 ${parts.count || 0}건`,
     },
   ];
   els.performanceRankingBoard.innerHTML = boards.map((board) => `
@@ -1512,6 +1770,11 @@ function rankingValueForEntry(ranking, entry) {
   const missionIds = new Set(ranking?.missionIds || []);
   let total = 0;
   if (missionIds.has("praise") && entry?.helpType) total += 1;
+  if (missionIds.has("hall-performance")) {
+    performanceItemsForRole("hall").forEach((item) => {
+      total += performanceCountFromEntry(entry, item.id);
+    });
+  }
   if (missionIds.has("kitchen-performance")) total += specialCleanCountFromEntry(entry);
   if (missionIds.has("marketer-performance")) {
     performanceItemsForRole("marketer").forEach((item) => {
@@ -1519,7 +1782,7 @@ function rankingValueForEntry(ranking, entry) {
     });
   }
   [...missionIds]
-    .filter((id) => !["praise", "kitchen-performance", "marketer-performance"].includes(id))
+    .filter((id) => !["praise", "hall-performance", "kitchen-performance", "marketer-performance"].includes(id))
     .forEach((id) => {
       total += performanceCountFromEntry(entry, id);
     });
@@ -1739,6 +2002,20 @@ function handleSelfCheckAction(event) {
   if (deleteId) deleteSelfCheck(deleteId);
 }
 
+function syncSelfCheckEntryToCloud(entry) {
+  if (!entry || typeof saveSelfCheckEntryToCloud !== "function") return;
+  saveSelfCheckEntryToCloud(entry).catch((error) => {
+    console.warn(error);
+  });
+}
+
+function deleteSelfCheckEntryFromCloud(entry) {
+  if (!entry || typeof markSelfCheckEntryDeletedInCloud !== "function") return;
+  markSelfCheckEntryDeletedInCloud(entry).catch((error) => {
+    console.warn(error);
+  });
+}
+
 function submitLiveSelfCheck(entryId) {
   const selfCheck = (state.selfChecks || []).find((entry) => entry.id === entryId);
   if (!selfCheck) return;
@@ -1765,6 +2042,7 @@ function submitLiveSelfCheck(entryId) {
     date: selfCheck.date,
     action: "submit_live_check",
   });
+  syncSelfCheckEntryToCloud(selfCheck);
   saveState();
   render();
 }
@@ -1862,6 +2140,7 @@ function approveSelfCheck(entryId) {
   state.personalEntries.push(entry);
   selfCheck.status = "approved";
   selfCheck.approvedAt = new Date().toISOString();
+  selfCheck.updatedAt = new Date().toISOString();
   appendAnalyticsEvent(state, "manager_approve", {
     actorRole: "manager",
     entryId: selfCheck.id,
@@ -1870,6 +2149,7 @@ function approveSelfCheck(entryId) {
     date: selfCheck.date,
     approvedXp: entry.approvedXp || 0,
   });
+  syncSelfCheckEntryToCloud(selfCheck);
   saveState();
   render();
 }
@@ -1885,7 +2165,9 @@ function rejectSelfCheck(entryId) {
   const reason = prompt("반려 사유를 적어주세요. 비워도 반려 처리됩니다.") || "";
   selfCheck.status = "rejected";
   selfCheck.rejectedAt = new Date().toISOString();
+  selfCheck.updatedAt = new Date().toISOString();
   selfCheck.rejectReason = reason.trim();
+  syncSelfCheckEntryToCloud(selfCheck);
   saveState();
   render();
 }
@@ -1897,6 +2179,7 @@ function deleteSelfCheck(entryId) {
     .filter(Boolean)
     .join(" · ");
   if (!confirm(`${label} 기록을 삭제할까요?\n삭제하면 직원 퀘스트 승인창에서 사라집니다.`)) return;
+  deleteSelfCheckEntryFromCloud(selfCheck);
   state.selfChecks = (state.selfChecks || []).filter((entry) => entry.id !== entryId);
   saveState({ replaceSelfChecks: true });
   render();

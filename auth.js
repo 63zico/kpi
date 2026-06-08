@@ -118,6 +118,8 @@ const leveloveArchivedStoreIds = new Set([
       stores: mergeByKey(local.stores, cloud.stores, (store) => store?.id),
       users: mergeByKey(local.users, cloud.users, (user) => normalizeEmail(user?.email) || user?.id),
       invites: mergeByKey(local.invites, cloud.invites, (invite) => invite?.code || invite?.id),
+      canonicalStoreId: local.canonicalStoreId || cloud.canonicalStoreId || "",
+      cleanupVersion: local.cleanupVersion || cloud.cleanupVersion || "",
       updatedAt: [local.updatedAt, cloud.updatedAt, new Date().toISOString()].filter(Boolean).sort().pop(),
     });
   }
@@ -130,16 +132,6 @@ const leveloveArchivedStoreIds = new Set([
         authHydrated = true;
         if (!cloudState) return false;
         const localState = loadAuthState();
-        if (cloudState.cleanupVersion && cloudState.canonicalStoreId) {
-          const cleaned = normalizeAuthState(cloudState);
-          const before = JSON.stringify(localState);
-          const after = JSON.stringify(cleaned);
-          if (before !== after) {
-            localStorage.setItem(leveloveAuthStorageKey, JSON.stringify(cleaned));
-            return true;
-          }
-          return false;
-        }
         const merged = mergeAuthStates(localState, cloudState);
         const before = JSON.stringify(localState);
         const after = JSON.stringify(merged);
@@ -391,8 +383,7 @@ const leveloveArchivedStoreIds = new Set([
   }
 
   function canonicalStoreId(authState = loadAuthState()) {
-    if (authState.cleanupVersion && authState.canonicalStoreId) return authState.canonicalStoreId;
-    return leveloveDefaultStoreId || authState.canonicalStoreId || "";
+    return authState.canonicalStoreId || leveloveDefaultStoreId || "";
   }
 
   function activeStoreId() {
@@ -400,12 +391,11 @@ const leveloveArchivedStoreIds = new Set([
     const canonicalId = canonicalStoreId(authState);
     const explicitStoreId = storeIdFromUrl();
     if (explicitStoreId) {
-      if (authState.cleanupVersion && authState.canonicalStoreId && explicitStoreId !== authState.canonicalStoreId) return authState.canonicalStoreId;
       if (canonicalId && leveloveArchivedStoreIds.has(explicitStoreId)) return canonicalId;
       return explicitStoreId;
     }
     const activeSession = session();
-    return canonicalId || activeSession?.storeId || "main";
+    return activeSession?.storeId || canonicalId || "main";
   }
 
   function storeStateId() {
@@ -416,8 +406,14 @@ const leveloveArchivedStoreIds = new Set([
   function stateStorageKey(baseKey) {
     const storeId = activeStoreId();
     const key = storeId && storeId !== "main" ? `${baseKey}:${storeId}` : baseKey;
-    migrateLegacyStateStorage(baseKey, key, storeId);
+    if (shouldMigrateLegacyState(storeId)) migrateLegacyStateStorage(baseKey, key, storeId);
     return key;
+  }
+
+  function shouldMigrateLegacyState(targetStoreId) {
+    const legacyStoreId = storeIdFromUrl();
+    if (!legacyStoreId || !targetStoreId || legacyStoreId === targetStoreId) return false;
+    return leveloveArchivedStoreIds.has(legacyStoreId);
   }
 
   function migrateLegacyStateStorage(baseKey, targetKey, targetStoreId) {
@@ -459,7 +455,7 @@ const leveloveArchivedStoreIds = new Set([
     const user = userForSession(activeSession);
     const authState = loadAuthState();
     const previewAllowed = options.allowPreview && (params.get("preview") === "1" || params.get("admin") === "1");
-    const legacyStaffLink = currentPath === "employee-check.html" && params.get("staff") && params.get("token");
+    const legacyStaffLink = currentPath === "employee-check.html" && params.get("staff") && params.get("token") && storeIdFromUrl();
     const legacyManagerLink = currentPath === "levelove-admin-9c4f2a7.html" && params.get("manager") && params.get("token") && storeIdFromUrl();
     if (previewAllowed) return { ok: true, preview: true, user, session: activeSession };
     if (legacyStaffLink && !activeSession) return { ok: true, legacy: true, user, session: activeSession };

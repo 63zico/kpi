@@ -1,4 +1,5 @@
-const storageKey = "doya-kpi-levelup-v2";
+﻿const storageKey = "doya-kpi-levelup-v2";
+const testAppVersion = "20260605-core-rank-2";
 
 function appStorageKey() {
   return window.LeveloveAuth?.stateStorageKey?.(storageKey) || storageKey;
@@ -43,24 +44,24 @@ const rolePerformanceLabels = {
 
 const defaultRankingSettings = [
   {
-    id: "review-award",
-    title: "리뷰왕",
+    id: "hall-award",
+    title: "홀왕",
     role: "hall",
-    missionIds: ["review-photo"],
+    missionIds: ["hall-performance"],
     enabled: true,
-    cheer: "리뷰 한 번이 이번 달 트로피에 가까워지는 길이에요.",
+    cheer: "고객 응대와 판매 성과를 차곡차곡 모아봐요.",
     monthlyTrophy: true,
-    mark: "⭐",
+    mark: "🏅",
   },
   {
-    id: "upsell-award",
-    title: "업셀왕",
-    role: "hall",
-    missionIds: ["sales-xp"],
+    id: "kitchen-award",
+    title: "주방왕",
+    role: "kitchen",
+    missionIds: ["kitchen-performance"],
     enabled: true,
-    cheer: "추천 성공을 차곡차곡 모아봐요.",
+    cheer: "주방 구역을 하나씩 클리어해요.",
     monthlyTrophy: true,
-    mark: "⚡",
+    mark: "🍳",
   },
   {
     id: "praise-award",
@@ -70,27 +71,7 @@ const defaultRankingSettings = [
     enabled: true,
     cheer: "동료에게 받은 고마움도 멋진 성과예요.",
     monthlyTrophy: true,
-    mark: "💬",
-  },
-  {
-    id: "cleaning-award",
-    title: "청소왕",
-    role: "kitchen",
-    missionIds: ["kitchen-performance"],
-    enabled: true,
-    cheer: "깨끗한 구역을 하나씩 클리어해요.",
-    monthlyTrophy: true,
-    mark: "✨",
-  },
-  {
-    id: "marketing-award",
-    title: "마케팅왕",
-    role: "marketer",
-    missionIds: ["marketer-performance"],
-    enabled: true,
-    cheer: "콘텐츠와 보고가 매장의 성장을 만들어요.",
-    monthlyTrophy: true,
-    mark: "📣",
+    mark: "💚",
   },
 ];
 
@@ -106,7 +87,7 @@ const defaultStoreSettings = {
   industry: "restaurant",
   template: "korean-restaurant",
   defaultLanguage: "ko",
-  rankingVisibility: "private",
+  rankingVisibility: "top3",
   bonusEnabled: false,
   operationPoints: ["추천 메뉴", "리뷰 요청", "멤버십/적립 안내", "피크타임 역할"],
   dailyOperationPoints: [],
@@ -178,12 +159,16 @@ const fields = {
   syncAppVersion: document.querySelector("#syncAppVersion"),
   launchChecklist: document.querySelector("#launchChecklist"),
   launchReadyBadge: document.querySelector("#launchReadyBadge"),
+  testFlowStoreId: document.querySelector("#testFlowStoreId"),
+  testFlowSummary: document.querySelector("#testFlowSummary"),
+  testFlowLinks: document.querySelector("#testFlowLinks"),
+  testFlowSteps: document.querySelector("#testFlowSteps"),
 };
 const templatePreview = document.querySelector("#templatePreview");
 const storeSettingsTabButtons = [...document.querySelectorAll("[data-store-settings-tab]")];
 const storeSettingsPanels = [...document.querySelectorAll("[data-store-settings-panel]")];
 
-const authResult = window.LeveloveAuth?.requireRole?.(["owner", "admin", "manager"]);
+const authResult = window.LeveloveAuth?.requireRole?.(["owner", "admin"]);
 if (authResult && !authResult.ok) {
   form?.setAttribute("hidden", "");
 } else {
@@ -358,6 +343,8 @@ fields.rankingSettings?.addEventListener("click", (event) => {
   scheduleSettingsAutosave(0);
 });
 
+document.addEventListener("click", copyTestFlowLink);
+
 function loadState() {
   try {
     return JSON.parse(localStorage.getItem(appStorageKey())) || {};
@@ -367,7 +354,7 @@ function loadState() {
 }
 
 function setStoreSettingsTab(tab) {
-  const nextTab = ["basic", "performance"].includes(tab) ? tab : "basic";
+  const nextTab = ["basic", "performance", "ranking"].includes(tab) ? tab : "basic";
   storeSettingsTabButtons.forEach((button) => {
     const isActive = button.dataset.storeSettingsTab === nextTab;
     button.classList.toggle("is-active", isActive);
@@ -475,7 +462,7 @@ function updateSyncStatus(saveText = "준비 중") {
   const storageScope = storeId && storeId !== "main" ? "로그인 매장" : "기본 저장소";
   if (fields.syncStorageScope) fields.syncStorageScope.textContent = storageScope;
   if (fields.syncSaveState) fields.syncSaveState.textContent = saveText;
-  if (fields.syncAppVersion) fields.syncAppVersion.textContent = "20260603-mobile-checkin-flow-1";
+  if (fields.syncAppVersion) fields.syncAppVersion.textContent = testAppVersion;
   renderLaunchChecklist();
 }
 
@@ -498,7 +485,7 @@ function renderLaunchChecklist() {
     },
     {
       title: "직원 등록",
-      detail: activeStaff.length ? `${activeStaff.length}명 사용 중` : "직원 관리에서 직원 추가",
+      detail: activeStaff.length ? `${activeStaff.length}명 사용 중` : "직원 원본 관리에서 직원 추가",
       done: activeStaff.length > 0,
     },
     {
@@ -526,6 +513,189 @@ function renderLaunchChecklist() {
       </div>
     </article>
   `).join("");
+  renderTestAppFlow();
+}
+
+function renderTestAppFlow() {
+  if (!fields.testFlowLinks) return;
+  ensureLaunchAccessTokens();
+  const storeId = window.LeveloveAuth?.activeStoreId?.() || "main";
+  const activeStaff = activeLaunchStaff();
+  const managers = activeLaunchManagers();
+  const firstManager = managers[0] || null;
+  const submittedCount = (state.selfChecks || []).filter((entry) => entry?.status && entry.status !== "deleted").length;
+  const ownerUrl = scopedAppUrl("levelove-store-9c4f2a7.html");
+  const fallbackManagerUrl = scopedAppUrl("levelove-admin-9c4f2a7.html", {}, "today");
+
+  if (fields.testFlowStoreId) fields.testFlowStoreId.textContent = storeId && storeId !== "main" ? storeId : "store 없음";
+  fields.testFlowSummary.innerHTML = [
+    ["매장 스코프", storeId && storeId !== "main" ? "고정됨" : "확인 필요", storeId && storeId !== "main" ? storeId : "로그인 또는 store 링크 필요"],
+    ["직원앱 링크", `${activeStaff.length}명`, activeStaff.length ? "직원 원본 관리에서 읽어옴" : "직원 원본 관리에서 직원 추가"],
+    ["매니저 승인 링크", managers.length ? `${managers.length}명` : "없음", firstManager ? `${firstManager.name}부터 승인` : "매니저 역할 직원 추가 권장"],
+    ["제출 기록", `${submittedCount}건`, "모바일 제출 후 관리자 승인 확인"],
+  ].map(([label, value, detail]) => `
+    <article class="test-flow-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `).join("");
+
+  const ownerLinks = [
+    {
+      title: "사장님 설정",
+      detail: "매장 이름, 역할별 성과, 랭킹, 팀 챌린지 설정",
+      url: ownerUrl,
+      disabled: false,
+    },
+  ];
+  const managerLinks = managers.length
+    ? managers.map((person) => ({
+      title: `${person.name} 매니저`,
+      detail: `${roleLabelForTestFlow(person.role)} · 로그인 없이 승인/오늘 확인`,
+      url: managerTestLink(person),
+      disabled: false,
+    }))
+    : [{
+      title: "매니저 화면",
+      detail: "매니저 직원이 없어서 관리자 화면 링크로 대체",
+      url: fallbackManagerUrl,
+      disabled: false,
+    }];
+  const staffLinks = activeStaff.map((person) => ({
+    title: `${person.name} 직원앱`,
+    detail: `${roleLabelForTestFlow(person.role)} · 모바일 출근/퇴근 테스트`,
+    url: employeeTestLink(person),
+    disabled: false,
+  }));
+
+  fields.testFlowLinks.innerHTML = [
+    renderTestFlowLinkGroup("기본 링크", ownerLinks),
+    renderTestFlowLinkGroup("매니저 승인 링크", managerLinks),
+    renderTestFlowLinkGroup("직원앱 링크", staffLinks, "직원 원본 관리에서 직원을 추가하면 여기에 자동으로 표시됩니다."),
+  ].join("");
+
+  const stepStatus = [
+    { title: "1. 사장님", detail: "매장설정에서 직원/성과/랭킹 확인", done: Boolean(storeId && storeId !== "main") },
+    { title: "2. 매니저", detail: "매니저 링크를 폰/PC에서 열어 승인 탭 확인", done: Boolean(firstManager || fallbackManagerUrl) },
+    { title: "3. 직원", detail: "직원 링크를 모바일로 열어 출근-목표-퇴근 제출", done: Boolean(activeStaff.length) },
+    { title: "4. 승인", detail: "관리자 승인대기에 제출이 뜨는지 확인", done: submittedCount > 0 },
+  ];
+  fields.testFlowSteps.innerHTML = stepStatus.map((step) => `
+    <article class="test-flow-step ${step.done ? "is-done" : ""}">
+      <span>${step.done ? "OK" : "!"}</span>
+      <div>
+        <strong>${escapeHtml(step.title)}</strong>
+        <small>${escapeHtml(step.detail)}</small>
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderTestFlowLinkGroup(title, links, emptyText = "링크가 없습니다.") {
+  return `
+    <section class="test-flow-link-group">
+      <div class="test-flow-link-group-head">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${links.length}개</span>
+      </div>
+      <div class="test-flow-link-group-list">
+        ${links.length ? links.map(renderTestFlowLink).join("") : `<p class="test-flow-empty">${escapeHtml(emptyText)}</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderTestFlowLink(link) {
+  return `
+    <article class="test-flow-link ${link.disabled ? "is-disabled" : ""}">
+      <div>
+        <strong>${escapeHtml(link.title)}</strong>
+        <small>${escapeHtml(link.detail)}</small>
+        <code>${escapeHtml(link.url || "링크 생성 전")}</code>
+      </div>
+      <div class="test-flow-link-actions">
+        ${link.url ? `<a class="btn ghost" href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">열기</a>` : ""}
+        <button class="btn primary" type="button" data-copy-test-link="${escapeHtml(link.url)}" ${link.disabled ? "disabled" : ""}>복사</button>
+      </div>
+    </article>
+  `;
+}
+
+function activeLaunchManagers() {
+  return (Array.isArray(state.staff) ? state.staff : [])
+    .filter((person) => person?.active !== false && isManagerRole(person?.role));
+}
+
+function ensureLaunchAccessTokens() {
+  if (!Array.isArray(state.staff) || !state.staff.length) return false;
+  let changed = false;
+  state.staff = state.staff.map((person) => {
+    if (person?.accessToken) return person;
+    changed = true;
+    return { ...person, accessToken: createLaunchToken() };
+  });
+  if (changed) {
+    localStorage.setItem(appStorageKey(), JSON.stringify(state));
+    if (!ensureLaunchAccessTokens.saving) {
+      ensureLaunchAccessTokens.saving = true;
+      saveStoreSettingsEverywhere("링크 토큰 저장됨").finally(() => {
+        ensureLaunchAccessTokens.saving = false;
+      });
+    }
+  }
+  return changed;
+}
+
+function createLaunchToken() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replaceAll("-", "").slice(0, 24);
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
+}
+
+function scopedAppUrl(path, extraParams = {}, hash = "") {
+  const url = new URL(path, window.location.href);
+  const storeId = window.LeveloveAuth?.activeStoreId?.() || "";
+  if (storeId && storeId !== "main") url.searchParams.set("store", storeId);
+  url.searchParams.set("v", testAppVersion);
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== "") url.searchParams.set(key, value);
+  });
+  if (hash) url.hash = hash;
+  return url.href;
+}
+
+function managerTestLink(person) {
+  return scopedAppUrl("levelove-admin-9c4f2a7.html", {
+    manager: person.id,
+    token: person.accessToken,
+    name: person.name,
+    role: person.role || "manager",
+  }, "approval");
+}
+
+function employeeTestLink(person) {
+  return scopedAppUrl("employee-check.html", {
+    staff: person.id,
+    token: person.accessToken,
+    name: person.name,
+    role: person.role || "hall",
+  });
+}
+
+async function copyTestFlowLink(event) {
+  const button = event.target.closest("[data-copy-test-link]");
+  if (!button || !button.dataset.copyTestLink) return;
+  const originalText = button.textContent;
+  try {
+    await navigator.clipboard.writeText(button.dataset.copyTestLink);
+    button.textContent = "복사됨";
+  } catch (error) {
+    console.warn(error);
+    button.textContent = "복사 실패";
+  }
+  window.setTimeout(() => {
+    button.textContent = originalText;
+  }, 1200);
 }
 
 function activeLaunchStaff() {
@@ -535,6 +705,19 @@ function activeLaunchStaff() {
 
 function isManagerRole(role) {
   return String(role || "").includes("manager");
+}
+
+function roleLabelForTestFlow(role) {
+  const labels = {
+    "hall-manager": "홀 매니저",
+    hall: "홀 일반직원",
+    "hall-part": "홀 파트타임",
+    "kitchen-manager": "주방 매니저",
+    kitchen: "주방 일반직원",
+    "kitchen-part": "주방 파트타임",
+    marketer: "마케터",
+  };
+  return labels[role] || role || "직원";
 }
 
 function enabledPerformanceCount() {
@@ -569,9 +752,13 @@ function rankingSettingKey(item) {
 
 function normalizeStoreSettings(value) {
   const performanceItems = normalizePerformanceItems(value?.performanceItems);
+  const rankingVisibility = ["top3", "all"].includes(value?.rankingVisibility)
+    ? value.rankingVisibility
+    : defaultStoreSettings.rankingVisibility;
   return {
     ...defaultStoreSettings,
     ...(value || {}),
+    rankingVisibility,
     operationPoints: normalizeOperationPoints(value?.operationPoints),
     dailyOperationPoints: normalizeOptionalOperationPoints(value?.dailyOperationPoints),
     dailyOperationDate: String(value?.dailyOperationDate || "").trim(),
@@ -593,7 +780,7 @@ function renderSettings() {
   fields.storeName.value = settings.storeName || "";
   fields.industry.value = settings.industry || "restaurant";
   fields.defaultLanguage.value = settings.defaultLanguage || "ko";
-  fields.rankingVisibility.value = "private";
+  fields.rankingVisibility.value = settings.rankingVisibility || "top3";
   if (fields.bonusEnabled) {
     fields.bonusEnabled.value = String(settings.bonusEnabled === true);
   }
@@ -611,7 +798,7 @@ function readSettings() {
     industry: fields.industry.value,
     template: templateForIndustry(fields.industry.value),
     defaultLanguage: fields.defaultLanguage.value,
-    rankingVisibility: "private",
+    rankingVisibility: fields.rankingVisibility?.value || "top3",
     bonusEnabled: false,
     operationPoints: fields.operationPoints
       ? parseOperationPoints(fields.operationPoints.value)
@@ -851,26 +1038,56 @@ function readPerformanceItemsFromDom() {
 
 function normalizeRankingSettings(value, performanceSource = defaultPerformanceItems) {
   const allowedIds = new Set(rankingMissionOptions(normalizePerformanceItems(performanceSource)).map((option) => option.id));
-  const source = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const sourceValue = Array.isArray(value) && value.length ? value : defaultRankingSettings;
+  const coreIds = new Set(defaultRankingSettings.map((item) => item.id));
+  const coreTitles = new Set(defaultRankingSettings.map((item) => item.title));
+  const legacyIds = new Set(["review-award", "upsell-award", "cleaning-award", "marketing-award"]);
+  const legacyTitles = new Set(["리뷰왕", "업셀왕", "청소왕", "마케팅왕", "업셀/판매왕"]);
+  const hasCoreRanking = sourceValue.some((item) => coreIds.has(String(item?.id || "")) || coreTitles.has(String(item?.title || "")));
+  const hasLegacyRanking = sourceValue.some((item) => legacyIds.has(String(item?.id || "")) || legacyTitles.has(String(item?.title || "")));
+  const source = hasLegacyRanking && !hasCoreRanking ? defaultRankingSettings : sourceValue;
   const normalized = source
     .map((item, index) => {
-      const fallback = defaultRankingSettings[index] || defaultRankingSettings[0];
-      const missionIds = Array.isArray(item?.missionIds)
+      const itemId = String(item?.id || "").trim();
+      const itemTitle = String(item?.title || "").trim();
+      const coreFallback = defaultRankingSettings.find((preset) => preset.id === itemId || preset.title === itemTitle);
+      const fallback = coreFallback || defaultRankingSettings[index] || defaultRankingSettings[0];
+      const missionIds = coreFallback
+        ? coreFallback.missionIds
+        : Array.isArray(item?.missionIds)
         ? item.missionIds
         : [item?.missionId || fallback?.missionIds?.[0] || "praise"];
       return {
-        id: String(item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
-        title: String(item?.title || fallback?.title || "").trim(),
-        role: ["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all"),
+        id: String(coreFallback?.id || item?.id || fallback?.id || `ranking-${index + 1}`).trim(),
+        title: String(coreFallback?.title || item?.title || fallback?.title || "").trim(),
+        role: coreFallback?.role || (["all", "hall", "kitchen", "marketer"].includes(item?.role) ? item.role : (fallback?.role || "all")),
         missionIds: missionIds.map((id) => String(id || "").trim()).filter((id) => allowedIds.has(id)).slice(0, 4),
         enabled: toBoolean(item?.enabled, true),
-        cheer: String(item?.cheer || fallback?.cheer || "").trim(),
+        cheer: String(coreFallback?.cheer || item?.cheer || fallback?.cheer || "").trim(),
         monthlyTrophy: toBoolean(item?.monthlyTrophy, true),
-        mark: String(item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
+        mark: String(coreFallback?.mark || item?.mark || fallback?.mark || "🏆").trim().slice(0, 4),
       };
     })
-    .filter((item) => item.id && item.title && item.missionIds.length);
-  return normalized.length ? normalized : defaultRankingSettings.map((item) => ({ ...item, missionIds: [...item.missionIds] }));
+    .filter((item) => item.id && item.title && item.missionIds.length)
+    .filter((item) => !legacyIds.has(item.id) && !legacyTitles.has(item.title));
+  const coreRankings = defaultRankingSettings.map((fallback) => {
+    const existing = normalized.find((item) => item.id === fallback.id || item.title === fallback.title);
+    return {
+      ...(existing || fallback),
+      id: fallback.id,
+      title: fallback.title,
+      role: fallback.role,
+      missionIds: [...fallback.missionIds],
+      cheer: fallback.cheer,
+      mark: fallback.mark,
+      enabled: existing ? toBoolean(existing.enabled, true) : toBoolean(fallback.enabled, true),
+      monthlyTrophy: existing ? toBoolean(existing.monthlyTrophy, true) : toBoolean(fallback.monthlyTrophy, true),
+    };
+  });
+  const customRankings = normalized.filter((item) => !defaultRankingSettings.some((fallback) => (
+    item.id === fallback.id || item.title === fallback.title
+  )));
+  return [...coreRankings, ...customRankings];
 }
 
 function rankingMissionOptions(performanceItems = normalizePerformanceItems(settings.performanceItems)) {
@@ -884,6 +1101,7 @@ function rankingMissionOptions(performanceItems = normalizePerformanceItems(sett
   ));
   return [
     ...roleOptions,
+    { id: "hall-performance", label: "홀 · 켜진 홀 성과 전체" },
     { id: "kitchen-performance", label: "주방 · 켜진 청소 성과 전체" },
     { id: "marketer-performance", label: "마케팅 · 켜진 마케팅 성과 전체" },
     { id: "praise", label: "전체 · 동료 칭찬 받은 횟수" },
